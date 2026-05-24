@@ -74,6 +74,61 @@ A mismatch — the common failure where an agent holds a stale implementation ag
 
 This is the seam where a manifest reaches the interpreter: a registry is no longer a bare bag of functions, but a manifest paired with a hash-checked implementation.
 
+## conformance
+
+The hash checks *identity* — that an implementation targets the manifest you mean. It says nothing about whether the implementation actually behaves the way the manifest declares. That's conformance, and the manifest's example calls are the test suite for it.
+
+`conform(manifest, implementation)` runs every declared example call against the implementation and checks the solutions match the declared result:
+
+```js
+import { conform } from "copper-ilp/core"
+
+const { conforms, results, untested } = conform(manifest, implementation)
+// conforms: true when every example agreed
+// results:  [{ primitive, call, conforms, error? }, ...]
+// untested: primitives that declare no examples — not failures, just not exercised
+```
+
+A declared example's `result` says what the call should produce:
+
+- `true` (or omitted) — the call must hold: at least one solution.
+- `false` — the call must not hold: zero solutions.
+- `{ solutions: [ { varName: Term }, … ] }` — the exact set of variable bindings, compared order-independently. This is how an output predicate pins its answer: `head(cons(1, …), H)` declares `{ solutions: [{ H: 1 }] }`, and a nondet predicate declares one entry per solution.
+
+`conform` is hash-agnostic — it reads only the implementation's predicates, so you can run it while authoring, before the hash is stamped. The hash and conformance are complementary: `loadHarness` checks the hash (a stale build), `conform` checks behaviour (a buggy predicate). A full trust check is both. A primitive that declares no examples is reported in `untested` rather than silently counted as passing — a thin manifest shouldn't masquerade as a tested one.
+
+### the curated `lists` library
+
+`libraries/lists/1.0.0/` is the first curated library and a worked example of the whole contract: a `manifest.json` declaring `cons`, `head`, `tail`, `empty`, and `member` — deterministic output bindings, a det test with both a true and a false example, and a non-deterministic enumeration — and a `javascript.js` implementation that records the manifest hash and passes every declared example. It is the conformance target the tests run against.
+
+## the library registry
+
+Curated libraries are distributed as files, laid out by name and version:
+
+```
+<root>/<library>/<version>/manifest.json
+<root>/<library>/<version>/<target>.js     # e.g. javascript.js
+```
+
+`libraryRegistry(root)` (from `copper-ilp/engine`) resolves that layout. The `root` is a local directory or an HTTP base URL — distribution is git or HTTP fetch from the repository, with no publishing API and no versioning service.
+
+```js
+import { libraryRegistry } from "copper-ilp/engine"
+
+const reg = libraryRegistry("libraries")
+await reg.list()                          // [{ library: "lists", version: "1.0.0" }, …]
+await reg.versions("lists")               // ["1.0.0"]
+await reg.manifest("lists", "latest")     // load + validate; "latest" → highest version
+await reg.implementationSource("lists", "1.0.0")   // the target's source text
+const { manifest, registry } = await reg.load("lists", "latest")  // verified, ready to run
+```
+
+`load` is the fetch-and-verify loop end to end: it reads the manifest, imports the implementation, checks the implementation's recorded hash against the manifest (`loadHarness`), and hands back a background registry the interpreter can use. A stale implementation is rejected before any goal resolves.
+
+Reading is safe over either transport; *loading* runs the implementation's code, so `load` is local-only. Over HTTP you fetch the manifest and source first (`manifest`, `implementationSource`), write them locally, then `load`. The server endpoints `/v1/libraries` and `/v1/libraries/{lib}/{version}` (#027) are this registry behind HTTP.
+
+**User-uploaded libraries are not supported in v1.** Running arbitrary fetched code in a synthesis service is a sandboxing problem with its own design pass; the registry serves only project-curated libraries. An agent that wants custom predicates self-hosts the engine and loads its own libraries directly.
+
 ## honest scope
 
-The manifest pins semantics and catches stale implementations; it does not *prove* an implementation is correct. That proof is the conformance suite — running the declared example calls against the implementation and checking they agree — which is #024. And the file-based library registry that distributes manifests and implementations (`libraries/<name>/<version>/`) is #025. This document is the format and the hash; those two build on it.
+The manifest pins semantics, the hash catches stale implementations, conformance checks one implementation against the declared examples, and the registry distributes and verifies them. What's deferred: *cross-target* conformance — running the same program through each lowering against the same examples and confirming they agree — has no meaning until a second target exists (Python, #029), at which point it belongs in CI. The HTTP surface over the registry is #027.

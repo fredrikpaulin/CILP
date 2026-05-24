@@ -70,6 +70,39 @@ synthesizes logic programs from examples, with pruning that scales with the sear
   implementation that records the hash it targets is rejected at load when it's stale
   against an evolved manifest. Supersedes the informal "JS functions registered by name":
   a registry is now a manifest paired with a hash-checked implementation. (#023)
+- Harness conformance (`conform` in copper-core) and the first curated library
+  (`libraries/lists/1.0.0/`). `conform(manifest, implementation)` runs every declared
+  example call against an implementation and checks the solutions match the declared
+  result (`true`/`false` for whether the call holds, or `{ solutions }` for the exact set
+  of variable bindings), returning per-example pass/fail plus the primitives that declare
+  no examples. The `lists` library (`cons`, `head`, `tail`, `empty`, `member` — det output
+  bindings, a det test, and a nondet enumeration over cons/nil lists) ships a manifest and
+  a JavaScript implementation that records the manifest hash and passes every example.
+  Where the semantic hash checks identity, conformance checks behaviour; the two are
+  complementary. Cross-target conformance is deferred until a second lowering exists
+  (Python, #029). (#024)
+- File-based library registry (`libraryRegistry` in copper-ilp/engine). Curated libraries
+  are distributed as files under `<root>/<library>/<version>/` — a `manifest.json` and
+  per-target implementations. The resolver provides `list`, `versions`,
+  `resolveVersion` (`"latest"` → highest), `manifest`, `implementationSource`, and `load`.
+  `load` is the fetch-and-verify loop end to end: read the manifest, import the
+  implementation, check its recorded hash against the manifest, return a ready background
+  registry — a stale implementation is rejected before any goal resolves. `root` is a
+  local directory or an HTTP base URL; reading works over either, but `load` runs the
+  implementation and is local-only. No publishing API, no versioning service, and no
+  user-uploaded libraries in v1; the HTTP surface (`/v1/libraries`) is #027. (#025)
+- Lowering framework and the JavaScript target (`lower`, `lowerJavaScript` in
+  copper-core, under `src/core/lowering/`). A lowering is a pure
+  `lower(program, harness, options?) => { source, metadata }`; `lower` dispatches on
+  `options.target` (default `"javascript"`). The JS pass uses modes to compile clauses
+  into native control flow — each head predicate becomes a generator yielding its `out`
+  arguments, body goals become nested loops, recursion becomes recursive generator calls
+  — and its output is verified to match the JSON interpreter solution-for-solution across
+  examples (the interpreter is the reference semantics). Mandatory modes: body-predicate
+  modes come from the harness, target modes from `options.modes`. The `metadata`
+  feasibility report is `"ok"` / `"caveats"` (recursion: native, no depth bound) /
+  `"infeasible"` (unmoded, ill-moded, or compound/non-variable arguments). Target-unaware
+  only; target-biased synthesis is #032. (#026)
 
 ### Fixed
 

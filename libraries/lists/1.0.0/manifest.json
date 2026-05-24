@@ -1,0 +1,130 @@
+{
+  "library": "lists",
+  "version": "1.0.0",
+  "semantic_hash": "sha256:77dd2ac8d319b9de0fa251fcd66acc08d19be0ed4f6272248d25c54984ebf886",
+  "primitives": [
+    {
+      "name": "cons",
+      "arity": 3,
+      "arg_types": ["any", "list", "list"],
+      "modes": ["in", "in", "out"],
+      "description": "cons(H, T, L) holds when L is the list with head H and tail T.",
+      "determinism": "det",
+      "examples": [
+        {
+          "call": { "predicate": "cons", "args": [
+            { "type": "const", "value": 1 },
+            { "type": "compound", "functor": "nil", "args": [] },
+            { "type": "var", "name": "L" }
+          ] },
+          "result": { "solutions": [
+            { "L": { "type": "compound", "functor": "cons", "args": [
+              { "type": "const", "value": 1 },
+              { "type": "compound", "functor": "nil", "args": [] }
+            ] } }
+          ] }
+        }
+      ]
+    },
+    {
+      "name": "head",
+      "arity": 2,
+      "arg_types": ["list", "any"],
+      "modes": ["in", "out"],
+      "description": "head(L, H) holds when H is the first element of the non-empty list L.",
+      "determinism": "det",
+      "examples": [
+        {
+          "call": { "predicate": "head", "args": [
+            { "type": "compound", "functor": "cons", "args": [
+              { "type": "const", "value": 1 },
+              { "type": "compound", "functor": "cons", "args": [
+                { "type": "const", "value": 2 },
+                { "type": "compound", "functor": "nil", "args": [] }
+              ] }
+            ] },
+            { "type": "var", "name": "H" }
+          ] },
+          "result": { "solutions": [ { "H": { "type": "const", "value": 1 } } ] }
+        }
+      ]
+    },
+    {
+      "name": "tail",
+      "arity": 2,
+      "arg_types": ["list", "list"],
+      "modes": ["in", "out"],
+      "description": "tail(L, T) holds when T is the list L with its first element removed.",
+      "determinism": "det",
+      "examples": [
+        {
+          "call": { "predicate": "tail", "args": [
+            { "type": "compound", "functor": "cons", "args": [
+              { "type": "const", "value": 1 },
+              { "type": "compound", "functor": "cons", "args": [
+                { "type": "const", "value": 2 },
+                { "type": "compound", "functor": "nil", "args": [] }
+              ] }
+            ] },
+            { "type": "var", "name": "T" }
+          ] },
+          "result": { "solutions": [ { "T": { "type": "compound", "functor": "cons", "args": [
+            { "type": "const", "value": 2 },
+            { "type": "compound", "functor": "nil", "args": [] }
+          ] } } ] }
+        }
+      ]
+    },
+    {
+      "name": "empty",
+      "arity": 1,
+      "arg_types": ["list"],
+      "modes": ["in"],
+      "description": "empty(L) holds when L is the empty list.",
+      "determinism": "det",
+      "examples": [
+        {
+          "call": { "predicate": "empty", "args": [
+            { "type": "compound", "functor": "nil", "args": [] }
+          ] },
+          "result": true
+        },
+        {
+          "call": { "predicate": "empty", "args": [
+            { "type": "compound", "functor": "cons", "args": [
+              { "type": "const", "value": 1 },
+              { "type": "compound", "functor": "nil", "args": [] }
+            ] }
+          ] },
+          "result": false
+        }
+      ]
+    },
+    {
+      "name": "member",
+      "arity": 2,
+      "arg_types": ["any", "list"],
+      "modes": ["out", "in"],
+      "description": "member(X, L) holds when X is an element of the list L. Non-deterministic: one solution per element.",
+      "determinism": "nondet",
+      "examples": [
+        {
+          "call": { "predicate": "member", "args": [
+            { "type": "var", "name": "X" },
+            { "type": "compound", "functor": "cons", "args": [
+              { "type": "const", "value": 1 },
+              { "type": "compound", "functor": "cons", "args": [
+                { "type": "const", "value": 2 },
+                { "type": "compound", "functor": "nil", "args": [] }
+              ] }
+            ] }
+          ] },
+          "result": { "solutions": [
+            { "X": { "type": "const", "value": 1 } },
+            { "X": { "type": "const", "value": 2 } }
+          ] }
+        }
+      ]
+    }
+  ]
+}

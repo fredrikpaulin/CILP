@@ -120,9 +120,47 @@ withHash(manifest): Promise<HarnessManifest>         // copy with semantic_hash 
 verifyManifest(manifest): Promise<{ valid, errors }> // validate + check stored hash
 checkImplementation(impl, manifest): Promise<true>   // throws on hash mismatch
 loadHarness(manifest, impl): Promise<Registry>       // verify hash, then build a registry
+conform(manifest, impl): { conforms, results, untested } // run the declared example calls
 ```
 
-All live in `copper-ilp/core`. The hash is order-independent over primitives and keys and excludes `library`/`version`, so identical primitives hash alike across version labels. See [harness manifests](harness.md) for the format, the hash semantics, and what's deferred to the conformance suite (#024) and the library registry (#025).
+All live in `copper-ilp/core`. The hash is order-independent over primitives and keys and excludes `library`/`version`, so identical primitives hash alike across version labels. `conform` checks behaviour rather than identity: it runs each declared example call and compares solutions to the declared `result` (`true`/`false`, or `{ solutions }`). See [harness manifests](harness.md) for the format, the hash semantics, conformance, and what's deferred to cross-target conformance (#029).
+
+## the library registry
+
+Curated libraries are distributed as files under `<root>/<library>/<version>/` — a `manifest.json` and per-target implementations. `libraryRegistry(root)` (from `copper-ilp/engine`) resolves them:
+
+```
+libraryRegistry(root): {
+  list(): Promise<{ library, version }[]>            // local only
+  versions(library): Promise<string[]>
+  resolveVersion(library, version): Promise<string>  // "latest" → highest
+  manifest(library, version): Promise<HarnessManifest>
+  implementationSource(library, version, target?): Promise<string>
+  load(library, version, target?): Promise<{ manifest, registry, … }>  // verify hash, build registry
+}
+```
+
+`root` is a local directory or an HTTP base URL. Reading (manifest, source) works over either; `load` runs the implementation and is local-only. The HTTP surface over this registry is the server's `/v1/libraries` endpoints (#027). User-uploaded libraries are not supported in v1.
+
+## lowering
+
+A lowering compiles a JSON program to target-language source. The JSON interpreter is the reference semantics; lowered code must match it.
+
+```
+lower(program, harness, options?): { source, metadata }
+lowerJavaScript(program, harness, options?): { source, metadata }
+
+metadata = {
+  target: string,
+  feasibility: "ok" | "caveats" | "infeasible",
+  caveats: string[],
+  reason: string | null,        // set when infeasible; source is null
+  imports: string[],
+  entrypoints: string[]
+}
+```
+
+`lower` dispatches on `options.target` (default `"javascript"`). Both live in `copper-ilp/core`. Modes are mandatory: body-predicate modes come from the harness manifest, and the target predicate's modes are passed in `options.modes` (a `{ predicate: ["in"|"out", …] }` map). `options.implementation` and `options.core` set the module specifiers the generated source imports. A program that is unmoded, ill-moded, or uses compound/non-variable arguments is reported `infeasible`; recursion lowers with a `caveats` report. See [lowering](lowering.md).
 
 ## stability
 

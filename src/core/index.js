@@ -1,6 +1,7 @@
 // copper-ilp/core — the universal layer. No native, GPU, or Bun-specific
 // dependencies; runs in any JavaScript runtime. The term language, the JSON program
-// interpreter, background predicates, normalization, verification, and harness manifests.
+// interpreter, background predicates, normalization, verification, harness manifests,
+// and target lowerings.
 
 export { copperSchema, validate, isTerm, isAtom, isClause, isProgram } from "./schema.js"
 export { unify, walk, applySubstitution } from "./unify.js"
@@ -12,3 +13,5 @@ export {
   validateManifest, loadManifest, semanticHash, withHash,
   verifyManifest, checkImplementation, loadHarness
 } from "./harness.js"
+export { conform } from "./conformance.js"
+export { lower, lowerJavaScript } from "./lowering/index.js"

@@ -6,3 +6,6 @@ project/
 native/*.dylib
 shaders/*.metallib
 shaders/*.air
+
+# lowering test scratch (generated modules written then re-imported)
+tests/.lowering-tmp/

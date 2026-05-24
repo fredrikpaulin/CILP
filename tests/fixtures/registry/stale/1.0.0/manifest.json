@@ -1,0 +1,12 @@
+{
+  "library": "stale",
+  "version": "1.0.0",
+  "primitives": [
+    {
+      "name": "yes",
+      "arity": 0,
+      "description": "always holds; a minimal primitive for the stale-hash fixture",
+      "determinism": "det"
+    }
+  ]
+}
