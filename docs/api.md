@@ -170,13 +170,15 @@ metadata = {
 makeHandler(options?): (Request) => Promise<Response>   // testable without a port
 serve(options?): Bun.Server                              // binds Bun.serve
 
-POST /v1/synthesize                  { problem, library, budget, targets?, options? } → { status, solution }
+POST /v1/synthesize                  { problem, library, budget, targets?, options? } → 202 { status: "pending", job_id, status_url }
+GET  /v1/jobs/{id}                    poll → { status: "pending" | "complete", solution? }
+GET  /v1/jobs/{id}/stream            Server-Sent Events: partial (best-so-far) then complete
 GET  /v1/capabilities                engine version, supported targets, libraries, feature flags
 GET  /v1/libraries                   list curated libraries and versions
 GET  /v1/libraries/{lib}/{version}   { manifest, implementations }
 ```
 
-The response `solution` always carries the JSON `program`, plus `lowerings` for requested targets, a per-example `proof`, a `harness_manifest` summary, and `stats`. The agent supplies the bias and examples; the named `library` supplies the hash-verified background. Every request must carry a `budget`. The MVP is synchronous; async jobs and streaming are #028. See [the synthesis server](server.md).
+Synthesis is asynchronous by default: `POST /v1/synthesize` starts a job and returns its id, and the agent polls `/v1/jobs/{id}` or subscribes to `/v1/jobs/{id}/stream`. A `Prefer: respond-sync` header waits up to `syncTimeoutMs` (default 5000) for completion and returns the solution inline, otherwise falling back to the job id. The `solution` always carries the JSON `program`, plus `lowerings` for requested targets, a per-example `proof`, a `harness_manifest` summary, and `stats`. The agent supplies the bias and examples; the named `library` supplies the hash-verified background. Every request must carry a `budget`. See [the synthesis server](server.md).
 
 ## stability
 

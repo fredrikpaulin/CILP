@@ -6,7 +6,7 @@
 export * from "../core/index.js"
 export { enumerate, enumerateClauses } from "./enumerate.js"
 export { makeConstraints, canonicalProgram, canonicalClause, subsumes } from "./constrain.js"
-export { synthesize } from "./synthesize.js"
+export { synthesize, synthesizeStream } from "./synthesize.js"
 // Packing layer (CPU-safe; the Metal-backed allocator lives in gpu/poolbuffer.js and
 // is not re-exported here, since importing it initializes Metal).
 export {

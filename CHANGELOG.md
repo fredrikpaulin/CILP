@@ -115,6 +115,17 @@ synthesizes logic programs from examples, with pruning that scales with the sear
   `makeHandler` returns a bare `(Request) => Response` so the server is testable without a
   port. Auth, rate limiting, and quotas are deployment config, out of scope; async jobs and
   streaming are #028. (#027)
+- Async jobs and SSE streaming on the synthesis server (#028). The search loop is now an
+  anytime generator: `synthesizeStream` yields a best-so-far solution each time the best
+  candidate improves, plus a terminal step (`synthesize` is unchanged — it consumes the
+  generator to the terminal). `POST /v1/synthesize` is asynchronous by default — it starts
+  a job and returns `202 { status: "pending", job_id, status_url }`; `GET /v1/jobs/{id}`
+  polls. `Prefer: respond-sync` waits up to `syncTimeoutMs` (default 5000) for completion
+  and answers inline, otherwise falling back to the job id while the search continues.
+  `GET /v1/jobs/{id}/stream` emits Server-Sent Events — `partial` (best-so-far `{program,
+  stats}`) as the search improves, then a final `complete` with the full solution —
+  replaying recorded partials to late subscribers and surviving an early client hang-up.
+  The capabilities `streaming` flag is now `true`. (#028)
 
 ### Fixed
 

@@ -9,7 +9,11 @@ const nil = { type: "compound", functor: "nil", args: [] }
 const cons = (h, t) => ({ type: "compound", functor: "cons", args: [h, t] })
 
 const get = path => handle(new Request(`http://t${path}`))
-const post = (path, body) => handle(new Request(`http://t${path}`, { method: "POST", body: JSON.stringify(body) }))
+// The default mode is async (#028); these tests assert the synchronous solution shape,
+// so they ask for it with Prefer: respond-sync. The fast firstof problem completes well
+// inside the sync window.
+const post = (path, body) =>
+  handle(new Request(`http://t${path}`, { method: "POST", body: JSON.stringify(body), headers: { prefer: "respond-sync" } }))
 
 // firstof(L, X) :- head(L, X). — a one-clause program the enumerator finds over `lists`.
 const firstofRequest = {
@@ -34,7 +38,7 @@ test("GET /v1/capabilities reports targets, libraries, and v1 feature flags", as
   expect(typeof cap.engine_version).toBe("string")
   expect(cap.supported_targets).toEqual(["javascript"])
   expect(cap.available_libraries).toContainEqual({ name: "lists", versions: ["1.0.0"] })
-  expect(cap.features).toEqual({ streaming: false, clarification: false, target_biased_synthesis: false })
+  expect(cap.features).toEqual({ streaming: true, clarification: false, target_biased_synthesis: false })
 })
 
 test("GET /v1/libraries lists the curated libraries", async () => {
