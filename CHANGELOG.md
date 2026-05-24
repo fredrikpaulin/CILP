@@ -126,6 +126,18 @@ synthesizes logic programs from examples, with pruning that scales with the sear
   stats}`) as the search improves, then a final `complete` with the full solution —
   replaying recorded partials to late subscribers and surviving an early client hang-up.
   The capabilities `streaming` flag is now `true`. (#028)
+- Python lowering (`lowerPython` in copper-core, `src/core/lowering/python.js`) — the second
+  target. The mode/feasibility/grouping analysis is now shared across targets in a new
+  `analyze.js`; each emitter only renders. Python renders the same plan as indentation-scoped
+  generators over plain-dict terms, leaning on a small `copper_runtime.py` (unify, walk,
+  apply_substitution, registry, conformance) and a per-target implementation. Ships
+  `libraries/lists/1.0.0/python.py`, a Python implementation of the `lists` library that
+  passes the manifest's example calls. The registry now maps targets to file extensions
+  (`.js`/`.py`) so it can serve `python.py`, and the server's supported targets include
+  `python`. Emitted Python matches the JSON interpreter across the examples, and — the
+  first real cross-target conformance check — the JavaScript and Python lowerings of the
+  same program agree solution-for-solution. Python execution tests skip where `python3` is
+  absent. (#029)
 
 ### Fixed
 

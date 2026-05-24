@@ -36,7 +36,7 @@ test("GET /v1/capabilities reports targets, libraries, and v1 feature flags", as
   expect(res.status).toBe(200)
   const cap = await res.json()
   expect(typeof cap.engine_version).toBe("string")
-  expect(cap.supported_targets).toEqual(["javascript"])
+  expect(cap.supported_targets).toEqual(["javascript", "python"])
   expect(cap.available_libraries).toContainEqual({ name: "lists", versions: ["1.0.0"] })
   expect(cap.features).toEqual({ streaming: true, clarification: false, target_biased_synthesis: false })
 })
@@ -81,6 +81,13 @@ test("POST /v1/synthesize returns program, proof, lowering, harness summary, and
   // a requested lowering is present and feasible
   expect(solution.lowerings.javascript.feasibility).toBe("ok")
   expect(solution.lowerings.javascript.source).toContain("export function* lowered_firstof")
+})
+
+test("a Python lowering is returned when requested", async () => {
+  const { solution } = await (await post("/v1/synthesize", { ...firstofRequest, targets: ["javascript", "python"] })).json()
+  expect(solution.lowerings.javascript.source).toContain("export function* lowered_firstof")
+  expect(solution.lowerings.python.feasibility).toBe("ok")
+  expect(solution.lowerings.python.source).toContain("def lowered_firstof")
 })
 
 test("lowerings appear only for requested targets", async () => {

@@ -131,4 +131,4 @@ Reading is safe over either transport; *loading* runs the implementation's code,
 
 ## honest scope
 
-The manifest pins semantics, the hash catches stale implementations, conformance checks one implementation against the declared examples, and the registry distributes and verifies them. What's deferred: *cross-target* conformance — running the same program through each lowering against the same examples and confirming they agree — has no meaning until a second target exists (Python, #029), at which point it belongs in CI. The HTTP surface over the registry is #027.
+The manifest pins semantics, the hash catches stale implementations, conformance checks one implementation against the declared examples, and the registry distributes and verifies them. With the Python target (#029) there are now two independent lowerings, so *cross-target* conformance — running the same program through each lowering against the same examples and confirming they agree — is real and tested; see [lowering](lowering.md#cross-target-conformance). The HTTP surface over the registry is #027.

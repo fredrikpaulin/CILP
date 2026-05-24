@@ -147,8 +147,9 @@ libraryRegistry(root): {
 A lowering compiles a JSON program to target-language source. The JSON interpreter is the reference semantics; lowered code must match it.
 
 ```
-lower(program, harness, options?): { source, metadata }
+lower(program, harness, options?): { source, metadata }   // options.target: "javascript" (default) | "python"
 lowerJavaScript(program, harness, options?): { source, metadata }
+lowerPython(program, harness, options?): { source, metadata }
 
 metadata = {
   target: string,
@@ -160,7 +161,7 @@ metadata = {
 }
 ```
 
-`lower` dispatches on `options.target` (default `"javascript"`). Both live in `copper-ilp/core`. Modes are mandatory: body-predicate modes come from the harness manifest, and the target predicate's modes are passed in `options.modes` (a `{ predicate: ["in"|"out", …] }` map). `options.implementation` and `options.core` set the module specifiers the generated source imports. A program that is unmoded, ill-moded, or uses compound/non-variable arguments is reported `infeasible`; recursion lowers with a `caveats` report. See [lowering](lowering.md).
+`lower` dispatches on `options.target` (default `"javascript"`); JavaScript and Python both ship. All live in `copper-ilp/core`, and the mode/feasibility analysis is shared (`analyze.js`). Modes are mandatory: body-predicate modes come from the harness manifest, and the target predicate's modes are passed in `options.modes` (a `{ predicate: ["in"|"out", …] }` map). `options.implementation` (and `options.core` for JS, `options.runtime` for Python) set the module specifiers the generated source imports. A program that is unmoded, ill-moded, or uses compound/non-variable arguments is reported `infeasible`; recursion lowers with a `caveats` report. Because every target is checked against the interpreter, the two agree with each other — a cross-target conformance check. See [lowering](lowering.md).
 
 ## the synthesis server
 

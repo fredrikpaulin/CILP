@@ -14,4 +14,4 @@ export {
   verifyManifest, checkImplementation, loadHarness
 } from "./harness.js"
 export { conform } from "./conformance.js"
-export { lower, lowerJavaScript } from "./lowering/index.js"
+export { lower, lowerJavaScript, lowerPython } from "./lowering/index.js"

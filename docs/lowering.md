@@ -6,7 +6,7 @@ The JSON program is the source of truth, but an agent often wants ordinary sourc
 lower(program, harness, options?) => { source, metadata }
 ```
 
-The first target is JavaScript. The interpreter (`interpret`) is the reference semantics: lowered code must produce the same solutions on the same inputs, and a discrepancy is a lowering bug, not a synthesis bug. That equivalence — not plausible-looking output — is the definition of a correct lowering.
+The targets today are JavaScript and Python. The interpreter (`interpret`) is the reference semantics: lowered code must produce the same solutions on the same inputs, and a discrepancy is a lowering bug, not a synthesis bug. That equivalence — not plausible-looking output — is the definition of a correct lowering.
 
 ```js
 import { lower } from "copper-ilp/core"
@@ -14,7 +14,7 @@ import { lower } from "copper-ilp/core"
 const { source, metadata } = lower(program, manifest, { target: "javascript", modes: { grandparent: ["in", "out"] } })
 ```
 
-`lower` dispatches on `options.target` (default `"javascript"`); `lowerJavaScript` is the JS pass directly.
+`lower` dispatches on `options.target` (default `"javascript"`); `lowerJavaScript` and `lowerPython` are the per-target passes directly. The mode-checking, feasibility, and clause-grouping analysis is shared across targets (`analyze.js`); only the rendering into source differs.
 
 ## modes do the work
 
@@ -50,8 +50,21 @@ Not every program lowers. `metadata` carries a feasibility report:
 
 `metadata` also lists `imports` (the module specifiers the source pulls in) and `entrypoints` (the exported generator names).
 
+## targets
+
+Two targets ship today, both rendering the same plan in their own syntax:
+
+- **JavaScript** (`target: "javascript"`) — generators yielding out-arg arrays; imports `makeRegistry`/`applySubstitution` from `copper-ilp/core` and `predicates` from the per-target implementation.
+- **Python** (`target: "python"`) — the same structure as indentation-scoped generators (`def lowered_…`, nested `for` loops, `yield [..]`); imports `make_registry`/`apply_substitution` from a small `copper_runtime` module and `predicates` from the per-target implementation. Terms are plain dicts of the same JSON shape.
+
+A target's per-target implementation lives beside the manifest in the registry — `javascript.js`, `python.py` — and the lowered code calls into it. `options.implementation` and (for JS) `options.core` / (for Python) `options.runtime` set the module specifiers the generated source imports.
+
+## cross-target conformance
+
+Because every target is checked against the same interpreter, two targets that each match the interpreter must match each other. That's the cross-target conformance check the harness work was building toward (it had no meaning with one target): lower the same program to JavaScript and to Python, run both over the same examples, and confirm they produce the same solutions. Copper's tests do exactly this for a `lists` program — JS and Python lowerings agree solution-for-solution — which is a strong correctness signal, because an agreement across two independent code generators and two independent primitive implementations is hard to fake.
+
 ## honest scope
 
 This is target-unaware lowering: synthesize first, lower after, report feasibility. Target-biased synthesis — steering the search toward programs that lower cleanly to a chosen target — is a later feature (#032).
 
-The JS lowering is faithful but thin. It compiles away the clause machinery (head unification, standardize-apart, clause selection) into native control flow, but a primitive call still goes through the relational implementation rather than a mode-specialized function, because that's the implementation contract the harness defines. A deeper lowering that calls primitives in fully mode-directed form is future work. What's pinned now is the contract — `lower(program, harness) => { source, metadata }`, checked against the interpreter — and one target that satisfies it.
+Both lowerings are faithful but thin. They compile away the clause machinery (head unification, standardize-apart, clause selection) into native control flow, but a primitive call still goes through the relational implementation rather than a mode-specialized function, because that's the implementation contract the harness defines. A deeper lowering that calls primitives in fully mode-directed form is future work. What's pinned now is the contract — `lower(program, harness) => { source, metadata }`, checked against the interpreter — and two independent targets that satisfy it and agree with each other.

@@ -17,7 +17,7 @@ import { synthesizeStream } from "./synthesize.js"
 import { libraryRegistry } from "./registry.js"
 import pkg from "../../package.json"
 
-const SUPPORTED_TARGETS = ["javascript"]
+const SUPPORTED_TARGETS = ["javascript", "python"]
 const DEFAULT_SYNC_TIMEOUT_MS = 5000
 
 const json = (data, status = 200) =>
@@ -54,7 +54,8 @@ function buildSolution(result, spec) {
 
   const headModes = Object.fromEntries((problem.bias.head_predicates ?? []).filter(p => p.mode).map(p => [p.name, p.mode]))
   for (const target of targets) {
-    const { source, metadata } = lower(program, manifest, { target, modes: headModes, implementation: `./${target}.js` })
+    // Each target's lowering chooses its own conventional implementation specifier.
+    const { source, metadata } = lower(program, manifest, { target, modes: headModes })
     out.lowerings[target] = { source, feasibility: metadata.feasibility, caveats: metadata.caveats, reason: metadata.reason }
   }
   return out

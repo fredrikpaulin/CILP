@@ -17,6 +17,11 @@ import { loadManifest, loadHarness } from "../core/index.js"
 
 const isUrl = root => root.includes("://")
 
+// Per-target implementation file extension. `load()` stays .js — it imports and runs the
+// implementation, which only works for the JavaScript target; other targets are fetched as
+// source via implementationSource and run by their own runtime.
+const TARGET_EXTENSION = { javascript: ".js", python: ".py" }
+
 // Numeric, dotted-version comparison. Enough for the curated set; not a full semver.
 function compareVersions(a, b) {
   const pa = a.split(".").map(Number), pb = b.split(".").map(Number)
@@ -90,7 +95,7 @@ export function libraryRegistry(root = "libraries") {
   // fetches. Reading text never executes the code.
   async function implementationSource(library, version, target = "javascript") {
     const v = await resolveVersion(library, version)
-    return readText(at(library, v, `${target}.js`))
+    return readText(at(library, v, `${target}${TARGET_EXTENSION[target] ?? ".js"}`))
   }
 
   // Resolve a (library, version, target) into a verified background registry: read the
