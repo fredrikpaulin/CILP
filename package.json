@@ -1,0 +1,49 @@
+{
+  "name": "copper-ilp",
+  "version": "0.0.0",
+  "description": "A Bun-native, Metal-accelerated Inductive Logic Programming system.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./core": "./src/core/index.js",
+    "./engine": "./src/engine/index.js"
+  },
+  "author": {
+    "name": "Fredrik Paulin",
+    "email": "fredrik@rymdskepp.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fredrikpaulin/copper-ilp.git"
+  },
+  "keywords": [
+    "ilp",
+    "inductive-logic-programming",
+    "logic-programming",
+    "program-synthesis",
+    "unification",
+    "sld-resolution",
+    "popper",
+    "prolog",
+    "metal",
+    "gpu",
+    "bun"
+  ],
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "engines": {
+    "bun": ">=1.2.0"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "bun test tests/"
+  }
+}

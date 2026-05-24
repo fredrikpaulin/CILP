@@ -1,0 +1,28 @@
+{
+  "library": "kinship",
+  "version": "1.0.0",
+  "primitives": [
+    {
+      "name": "parent",
+      "arity": 2,
+      "arg_types": ["person", "person"],
+      "modes": ["in", "out"],
+      "description": "parent(P, C) holds when P is a parent of C.",
+      "determinism": "nondet",
+      "examples": [
+        { "call": { "predicate": "parent", "args": [{ "type": "const", "value": "tom" }, { "type": "const", "value": "bob" }] }, "result": true }
+      ]
+    },
+    {
+      "name": "eq",
+      "arity": 2,
+      "arg_types": ["any", "any"],
+      "modes": ["in", "in"],
+      "description": "eq(A, B) holds when A and B are the same term.",
+      "determinism": "det",
+      "examples": [
+        { "call": { "predicate": "eq", "args": [{ "type": "const", "value": 1 }, { "type": "const", "value": 1 }] }, "result": true }
+      ]
+    }
+  ]
+}
