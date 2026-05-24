@@ -162,6 +162,22 @@ metadata = {
 
 `lower` dispatches on `options.target` (default `"javascript"`). Both live in `copper-ilp/core`. Modes are mandatory: body-predicate modes come from the harness manifest, and the target predicate's modes are passed in `options.modes` (a `{ predicate: ["in"|"out", …] }` map). `options.implementation` and `options.core` set the module specifiers the generated source imports. A program that is unmoded, ill-moded, or uses compound/non-variable arguments is reported `infeasible`; recursion lowers with a `caveats` report. See [lowering](lowering.md).
 
+## the synthesis server
+
+`copper-ilp/engine` ships an HTTP server exposing synthesis as a service for field agents that can't run the engine.
+
+```
+makeHandler(options?): (Request) => Promise<Response>   // testable without a port
+serve(options?): Bun.Server                              // binds Bun.serve
+
+POST /v1/synthesize                  { problem, library, budget, targets?, options? } → { status, solution }
+GET  /v1/capabilities                engine version, supported targets, libraries, feature flags
+GET  /v1/libraries                   list curated libraries and versions
+GET  /v1/libraries/{lib}/{version}   { manifest, implementations }
+```
+
+The response `solution` always carries the JSON `program`, plus `lowerings` for requested targets, a per-example `proof`, a `harness_manifest` summary, and `stats`. The agent supplies the bias and examples; the named `library` supplies the hash-verified background. Every request must carry a `budget`. The MVP is synchronous; async jobs and streaming are #028. See [the synthesis server](server.md).
+
 ## stability
 
 The package is pre-1.0. The problem and solution schemas are the contract; treat anything not listed here as internal.

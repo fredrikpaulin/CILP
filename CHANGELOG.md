@@ -103,6 +103,18 @@ synthesizes logic programs from examples, with pruning that scales with the sear
   feasibility report is `"ok"` / `"caveats"` (recursion: native, no depth bound) /
   `"infeasible"` (unmoded, ill-moded, or compound/non-variable arguments). Target-unaware
   only; target-biased synthesis is #032. (#026)
+- MVP HTTP synthesis server (`makeHandler`, `serve` in copper-ilp/engine), built on
+  `Bun.serve()`. Synchronous surface: `POST /v1/synthesize` (the agent supplies bias and
+  examples, the named `library` supplies the hash-verified background; every request
+  carries a budget) returns `{ status, solution }` where `solution` always has the JSON
+  `program`, plus `lowerings` for requested targets, a per-example `proof`, a
+  `harness_manifest` summary naming the primitives used, and `stats`. `GET /v1/capabilities`
+  reports engine version, supported targets, available libraries, an (unmeasured) latency
+  profile, and feature flags (streaming / clarification / target-biased all false at v1.0).
+  `GET /v1/libraries` and `GET /v1/libraries/{lib}/{version}` serve the file registry.
+  `makeHandler` returns a bare `(Request) => Response` so the server is testable without a
+  port. Auth, rate limiting, and quotas are deployment config, out of scope; async jobs and
+  streaming are #028. (#027)
 
 ### Fixed
 
