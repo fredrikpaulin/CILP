@@ -1,9 +1,64 @@
 // Unification over the term language. The standard algorithm with occurs-check.
 //
-// A substitution is a Map<number, Term> keyed by variable id. unify() returns a
-// new substitution on success or null on failure — it never mutates the input, so
-// a caller can keep the original around after a failed attempt. Variables must
-// carry integer ids (the executor operates on normalized terms; see ticket #005).
+// A substitution maps variable ids to terms. It is *persistent*: binding returns a new
+// substitution that shares structure with the old one, so a caller can keep the original
+// around after a failed (or alternative) unification without the O(n) per-bind copy a
+// plain Map would force. unify() returns a new substitution on success or null on failure
+// and never mutates its input. Variables carry integer ids (the executor operates on
+// normalized terms; see #005). A plain Map is still accepted as a seed — an empty initial
+// substitution is the common one — and the first binding migrates it into the persistent
+// form, so existing callers and tests that pass `new Map()` keep working. (#020)
+
+const BITS = 5
+const MASK = 31
+const DEPTH = 7 // a fixed, immutable radix trie keyed on the 35-bit variable id
+
+function trieGet(root, id) {
+  let node = root
+  for (let s = 0; s < DEPTH && node !== undefined; s++) node = node[(id >>> (s * BITS)) & MASK]
+  return node
+}
+
+// Insert by path-copying: clone only the nodes along this id's path, sharing the rest with
+// the old trie. O(DEPTH) — independent of how many bindings the substitution already holds.
+function trieSet(root, id, term) {
+  const path = []
+  let node = root
+  for (let s = 0; s < DEPTH; s++) {
+    path.push(node)
+    node = node === undefined ? undefined : node[(id >>> (s * BITS)) & MASK]
+  }
+  let child = term
+  for (let s = DEPTH - 1; s >= 0; s--) {
+    const copy = path[s] === undefined ? {} : { ...path[s] }
+    copy[(id >>> (s * BITS)) & MASK] = child
+    child = copy
+  }
+  return child
+}
+
+// A persistent substitution. `has`/`get` mirror a Map so walk/occurs/applySubstitution work
+// over either a Sub or a Map seed; `set` returns a new Sub sharing structure with this one.
+export class Sub {
+  constructor(root = undefined, size = 0) {
+    this.root = root
+    this.size = size
+  }
+  has(id) { return trieGet(this.root, id) !== undefined }
+  get(id) { return trieGet(this.root, id) }
+  set(id, term) {
+    const grew = trieGet(this.root, id) === undefined
+    return new Sub(trieSet(this.root, id, term), grew ? this.size + 1 : this.size)
+  }
+  static from(seed) {
+    if (seed instanceof Sub) return seed
+    let s = EMPTY
+    for (const [id, term] of seed) s = s.set(id, term) // a Map seed, usually empty
+    return s
+  }
+}
+
+const EMPTY = new Sub()
 
 // Follow a variable through the substitution chain to whatever it is bound to.
 // Returns the input term unchanged if it is not a bound variable.
@@ -21,12 +76,10 @@ function occurs(id, term, sub) {
 
 function bind(variable, term, sub) {
   if (occurs(variable.id, term, sub)) return null // would build an infinite term
-  const next = new Map(sub)
-  next.set(variable.id, term)
-  return next
+  return Sub.from(sub).set(variable.id, term)
 }
 
-export function unify(a, b, sub = new Map()) {
+export function unify(a, b, sub = EMPTY) {
   a = walk(a, sub)
   b = walk(b, sub)
 

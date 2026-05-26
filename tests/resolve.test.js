@@ -58,3 +58,38 @@ test("recursion is explored and bounded by maxDepth", () => {
   expect(run(2)).toEqual(["ann", "bob", "pat"])
   expect(run(3)).toEqual(["ann", "bob", "jim", "pat"])
 })
+
+test("a long non-recursive chain of program goals is not cut by the recursion bound", () => {
+  // p(X) :- a(X), b(X), c(X).  a/b/c each defer to a background fact. No predicate
+  // recurses, so even maxDepth 1 should let the whole conjunction through — the bound
+  // measures recursion depth, not total clause expansions.
+  const program = {
+    clauses: [
+      { head: atom("p", V("X", 0)), body: [atom("a", V("X", 0)), atom("b", V("X", 0)), atom("c", V("X", 0))] },
+      { head: atom("a", V("X", 0)), body: [atom("fact", V("X", 0))] },
+      { head: atom("b", V("X", 0)), body: [atom("fact", V("X", 0))] },
+      { head: atom("c", V("X", 0)), body: [atom("fact", V("X", 0))] }
+    ]
+  }
+  const reg = makeRegistry({ fact: () => true })
+  // Three program predicates nest only one deep each; maxDepth 1 is enough.
+  expect([...interpret(program, reg, atom("p", C("z")), { maxDepth: 1 })].length).toBe(1)
+})
+
+test("the recursion bound counts re-entries per predicate, not siblings", () => {
+  // ping(X) :- pong(X).  pong(X) :- ping(X).  mutual recursion, base via stop.
+  // ping(X) :- stop(X).   With maxDepth 1, ping may be active once: ping -> pong -> ping
+  // would be a second ping activation and is cut, so only the direct stop succeeds.
+  const program = {
+    clauses: [
+      { head: atom("ping", V("X", 0)), body: [atom("stop", V("X", 0))] },
+      { head: atom("ping", V("X", 0)), body: [atom("pong", V("X", 0))] },
+      { head: atom("pong", V("X", 0)), body: [atom("ping", V("X", 0))] }
+    ]
+  }
+  const reg = makeRegistry({ stop: () => true })
+  // maxDepth 1: ping active at most once -> one solution (the base case), no infinite loop.
+  expect([...interpret(program, reg, atom("ping", C("z")), { maxDepth: 1 })].length).toBe(1)
+  // maxDepth 2: ping may re-enter once via pong, reaching stop again -> two solutions.
+  expect([...interpret(program, reg, atom("ping", C("z")), { maxDepth: 2 })].length).toBe(2)
+})

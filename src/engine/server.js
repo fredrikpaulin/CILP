@@ -12,9 +12,10 @@
 // and are out of scope. `makeHandler` returns a plain (Request) => Promise<Response> so the
 // whole server — jobs and streams included — is testable without binding a port.
 
-import { verify, lower } from "../core/index.js"
+import { verify } from "../core/index.js"
 import { synthesizeStream } from "./synthesize.js"
 import { libraryRegistry } from "./registry.js"
+import { makeLoweringCache } from "./lowering-cache.js"
 import pkg from "../../package.json"
 
 const SUPPORTED_TARGETS = ["javascript", "python"]
@@ -41,7 +42,7 @@ function harnessSummary(manifest, program, version) {
 
 // Assemble the full solution from a terminal search result: program (always), lowerings
 // for requested targets, per-example proof, harness summary, and stats.
-function buildSolution(result, spec) {
+function buildSolution(result, spec, lowerFn) {
   const { problem, manifest, background, targets, resolvedVersion } = spec
   const program = result.program
   const out = { program, lowerings: {}, proof: [], harness_manifest: null, stats: result.stats }
@@ -54,8 +55,9 @@ function buildSolution(result, spec) {
 
   const headModes = Object.fromEntries((problem.bias.head_predicates ?? []).filter(p => p.mode).map(p => [p.name, p.mode]))
   for (const target of targets) {
-    // Each target's lowering chooses its own conventional implementation specifier.
-    const { source, metadata } = lower(program, manifest, { target, modes: headModes })
+    // Lowered source is deterministic, so identical (program, target, harness) lowerings
+    // come from the cache rather than being recomputed.
+    const { source, metadata } = lowerFn(program, manifest, { target, modes: headModes })
     out.lowerings[target] = { source, feasibility: metadata.feasibility, caveats: metadata.caveats, reason: metadata.reason }
   }
   return out
@@ -97,6 +99,7 @@ export function makeHandler(options = {}) {
   const registry = libraryRegistry(options.registryRoot ?? "libraries")
   const version = options.engineVersion ?? pkg.version
   const syncTimeoutMs = options.syncTimeoutMs ?? DEFAULT_SYNC_TIMEOUT_MS
+  const loweringCache = options.loweringCache ?? makeLoweringCache()
   const jobs = new Map()
 
   const notify = (job, event, data) => { for (const sub of [...job.subscribers]) sub(event, data) }
@@ -112,7 +115,7 @@ export function makeHandler(options = {}) {
           notify(job, "partial", partial)
         }
       }
-      job.solution = buildSolution(terminal, spec)
+      job.solution = buildSolution(terminal, spec, loweringCache.lower)
       job.status = "complete"
       notify(job, "complete", job.solution)
     } catch (e) {

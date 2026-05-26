@@ -34,7 +34,7 @@ The validator is generated from the schemas rather than hand-written, so the sch
 
 ## unification
 
-`unify(a, b, sub?)` is the standard algorithm with occurs-check. A substitution is a `Map<number, Term>` keyed by variable id. The function returns a new substitution on success or `null` on failure, and never mutates its input.
+`unify(a, b, sub?)` is the standard algorithm with occurs-check. A substitution maps variable ids to terms. The function returns a new substitution on success or `null` on failure, and never mutates its input. The substitution is *persistent*: binding path-copies a small radix trie keyed on the variable id, sharing structure with the prior version, so each bind is O(log) rather than the O(n) full copy a plain `Map` would force — a single `unify` over a deep or wide term is no longer O(n²) in its bindings. The interface still mirrors a `Map` (`has`/`get`/`size`), and a plain `Map` is still accepted as a seed (the common empty one), so callers and tests that pass `new Map()` keep working.
 
 ```js
 import { unify, walk, applySubstitution } from "copper-ilp"
@@ -91,7 +91,7 @@ for (const sub of interpret(program, registry, query, { maxDepth: 3 })) {
 
 This is copper-core's reference interpreter (Appendix A §A.4): the meaning of a JSON program is whatever it yields, and lowerings must agree with it.
 
-`maxDepth` caps the number of program-clause expansions along a derivation branch (background-predicate calls don't count), which keeps resolution total. It is a conservative termination guard rather than a true per-predicate recursion-depth measure — a refinement tracked separately. On each clause use, the clause's variables are renamed to fresh ids ("standardizing apart") so recursive and repeated uses never clash with the query's variables or with each other.
+`maxDepth` — the bias's `max_recursion_depth` — caps how many times a single predicate may be *simultaneously active* along a derivation path. Each goal tracks, per predicate, the number of active program-clause expansions among its ancestors; a goal whose predicate already has `maxDepth` activations above it is not expanded. This bounds genuine recursion: a predicate may nest at most `maxDepth` deep, which keeps resolution total (each predicate appears boundedly often on a path, and there are finitely many). A long *non-recursive* conjunction of program goals is not cut, because sibling goals don't inherit each other's depth — only nested re-entry of the same predicate counts. Background-predicate calls don't expand clauses and don't count. On each clause use, the clause's variables are renamed to fresh ids ("standardizing apart") so recursive and repeated uses never clash with the query's variables or with each other.
 
 ## normalization
 

@@ -67,6 +67,20 @@ test("unify does not mutate the input substitution", () => {
   expect(result.size).toBe(1)
 })
 
+test("many bindings resolve correctly across trie levels", () => {
+  // ids spanning several radix levels (> 31, > 1023) exercise the persistent trie's
+  // path-copying and lookup, and confirm the functional contract holds at scale.
+  const n = 2500
+  const vars = { type: "compound", functor: "f", args: Array.from({ length: n }, (_, i) => v(`V${i}`, i)) }
+  const consts = { type: "compound", functor: "f", args: Array.from({ length: n }, (_, i) => c(i)) }
+  const sub = unify(vars, consts)
+  expect(sub).not.toBeNull()
+  expect(sub.size).toBe(n)
+  for (const i of [0, 1, 31, 32, 1023, 1024, n - 1]) {
+    expect(walk(v(`V${i}`, i), sub)).toEqual(c(i))
+  }
+})
+
 test("applySubstitution resolves nested terms", () => {
   const sub = unify(f("p", v("X", 0), v("Y", 1)), f("p", c("a"), f("g", c("b"))))
   const resolved = applySubstitution(f("p", v("X", 0), v("Y", 1)), sub)

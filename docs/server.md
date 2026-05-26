@@ -74,6 +74,10 @@ Reports `engine_version`, `supported_targets`, `available_libraries` (name and v
 
 The first lists curated libraries and their versions. The second returns a `{ manifest, implementations }` pair — the manifest plus the source text of each available per-target implementation — which is what an agent fetches, verifies against the manifest hash, and runs locally. A bare `/v1/libraries/{lib}` resolves to the latest version.
 
+## lowering cache
+
+Lowered source is a pure function of the program, the lowering options, the harness's semantics, and the lowering code, so the server caches it: a program it has already lowered to a target comes back from the cache instead of being recomputed. The cache key includes a canonical form of the program and options, the harness's `semantic_hash`, and a `LOWERING_VERSION` stamp — so a changed lowering never serves stale source. `makeHandler` creates one cache per server instance; pass `options.loweringCache` to inject your own (`makeLoweringCache(lowerFn)` from `copper-ilp/engine`, with `stats` and `size`). The store is unbounded for now — eviction is a later concern, like durable job storage.
+
 ## scope
 
 The server is unauthenticated and single-process. It is the surface the harness, lowering, and verification work were building toward — remote synthesis that returns a program you can run and a proof you can check, async by default with sync and streaming on top. The job store is in memory, so jobs do not survive a restart, and the background search currently runs in bursts between best-so-far updates rather than fully chunked — fine for the curated workloads, a known limit for pathological ones. Authentication, rate limiting, quotas, and durable job storage are deployment and operations concerns, named and deferred, not hidden.

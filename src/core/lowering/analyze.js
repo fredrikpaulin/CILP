@@ -14,7 +14,7 @@ export function modeMap(harness, options) {
 }
 
 export const headPredicates = program => new Set(program.clauses.map(c => c.head.predicate))
-const hasCompoundArg = atom => atom.args.some(a => a.type === "compound")
+export const hasCompoundArg = atom => atom.args.some(a => a.type === "compound")
 
 export const recursionCaveat = pred =>
   `${pred} is recursive; lowered as native recursion with no depth bound — relies on the data being well-founded`

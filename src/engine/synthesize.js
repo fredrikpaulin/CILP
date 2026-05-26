@@ -12,6 +12,7 @@
 import { validate } from "../core/schema.js"
 import { makeRegistry, loadBackground } from "../core/background.js"
 import { coverage } from "../core/verify.js"
+import { lower } from "../core/lowering/index.js"
 import { enumerate as defaultEnumerate } from "./enumerate.js"
 import { makeConstraints } from "./constrain.js"
 
@@ -42,13 +43,14 @@ function acceptable(cov, targetCoverage, noiseTolerance) {
   return positivesOk && negativesOk
 }
 
-function solution(program, cov, tested, pruned, start, exhausted, found) {
+function solution(program, cov, tested, pruned, start, exhausted, found, targetSkipped = 0) {
   return {
     program,
     coverage: cov,
     stats: {
       candidates_tested: tested,
       candidates_pruned: pruned,
+      candidates_target_skipped: targetSkipped,
       time_ms: Date.now() - start,
       search_exhausted: exhausted,
       found
@@ -56,15 +58,33 @@ function solution(program, cov, tested, pruned, start, exhausted, found) {
   }
 }
 
+// Modes the lowering needs, gathered from the bias's predicate declarations (head and
+// body). Used only for target-biased synthesis; SQL ignores them, JS/Python require them.
+function biasModes(problem) {
+  const decls = [...(problem.bias.head_predicates ?? []), ...(problem.bias.body_predicates ?? [])]
+  return Object.fromEntries(decls.filter(p => p.mode).map(p => [p.name, p.mode]))
+}
+
 // Validate, resolve background, and assemble the search parameters.
 async function prepare(problem, options) {
   const check = validate(problem, "problem")
   if (!check.valid) throw new Error(`invalid problem: ${check.errors.join("; ")}`)
   const registry = await resolveBackground(problem.background)
+
+  // Target-biased synthesis (#032): when the agent declares a target, a covering
+  // candidate is only accepted if it also lowers cleanly to that target. The gate reuses
+  // the lowering's own feasibility report, so the bias and the lowering can never disagree.
+  const target = options.target ?? null
+  const modes = target ? biasModes(problem) : null
+  const targetGate = target
+    ? candidate => lower(candidate, null, { target, modes }).metadata.feasibility !== "infeasible"
+    : () => true
+
   return {
     registry,
     enumerate: options.enumerate ?? defaultEnumerate,
     constraints: options.constraints === false ? null : makeConstraints(problem),
+    targetGate,
     targetCoverage: problem.target_coverage ?? 1.0,
     noiseTolerance: problem.noise_tolerance ?? 0,
     maxCandidates: problem.max_candidates ?? Infinity,
@@ -81,13 +101,13 @@ const HEARTBEAT = 256
 // exactly one terminal step (done: true). The terminal solution is what `synthesize`
 // returns; the improvements are the best-so-far the streaming server emits.
 function* search(prepared, problem) {
-  const { registry, enumerate, constraints, targetCoverage, noiseTolerance, maxCandidates, maxTimeMs, examples, evalOptions } = prepared
+  const { registry, enumerate, constraints, targetGate, targetCoverage, noiseTolerance, maxCandidates, maxTimeMs, examples, evalOptions } = prepared
   const start = Date.now()
-  let tested = 0, pruned = 0, best = null
+  let tested = 0, pruned = 0, skipped = 0, best = null
 
   for (const candidate of enumerate(problem)) {
     if (tested >= maxCandidates || Date.now() - start >= maxTimeMs) {
-      yield { done: true, improved: false, solution: solution(best?.program ?? null, best?.coverage ?? null, tested, pruned, start, false, false) }
+      yield { done: true, improved: false, solution: solution(best?.program ?? null, best?.coverage ?? null, tested, pruned, start, false, false, skipped) }
       return
     }
     if (constraints && constraints.prune(candidate)) { pruned++; continue }
@@ -99,13 +119,18 @@ function* search(prepared, problem) {
     if (best === null || score(cov) > score(best.coverage)) { best = { program: candidate, coverage: cov }; improved = true }
 
     if (acceptable(cov, targetCoverage, noiseTolerance)) {
-      yield { done: true, improved: true, solution: solution(candidate, cov, tested, pruned, start, false, true) }
-      return
+      // Under target-biased synthesis, a covering candidate that wouldn't lower cleanly to
+      // the declared target is skipped, and the search keeps looking for one that does.
+      if (targetGate(candidate)) {
+        yield { done: true, improved: true, solution: solution(candidate, cov, tested, pruned, start, false, true, skipped) }
+        return
+      }
+      skipped++
     }
-    if (improved) yield { done: false, improved: true, solution: solution(candidate, cov, tested, pruned, start, false, false) }
-    else if (tested % HEARTBEAT === 0) yield { done: false, improved: false, solution: solution(best?.program ?? null, best?.coverage ?? null, tested, pruned, start, false, false) }
+    if (improved) yield { done: false, improved: true, solution: solution(candidate, cov, tested, pruned, start, false, false, skipped) }
+    else if (tested % HEARTBEAT === 0) yield { done: false, improved: false, solution: solution(best?.program ?? null, best?.coverage ?? null, tested, pruned, start, false, false, skipped) }
   }
-  yield { done: true, improved: false, solution: solution(best?.program ?? null, best?.coverage ?? null, tested, pruned, start, true, false) }
+  yield { done: true, improved: false, solution: solution(best?.program ?? null, best?.coverage ?? null, tested, pruned, start, true, false, skipped) }
 }
 
 export async function synthesize(problem, options = {}) {

@@ -65,6 +65,8 @@ Solution = {
 
 A program is *acceptable* when it covers at least `target_coverage` of the positives (default 1.0) and at most `noise_tolerance` negatives (default 0) — the classic "all positives, no negatives" by default. `synthesize` returns the first acceptable program in the enumerator's order, or the best-scoring one seen if the budget runs out first.
 
+`synthesize(problem, options)` takes an optional `options.target` (`"javascript"` | `"python"` | `"sql"`) for *target-biased* synthesis: an acceptable program is returned only if it also lowers cleanly to that target, and covering-but-infeasible candidates are skipped (counted in `stats.candidates_target_skipped`). The gate reuses the lowering's feasibility report. See [lowering](lowering.md#target-biased-synthesis).
+
 The `program` field is always present: the found program, the best candidate seen, or `null` when nothing was enumerated. It is the JSON-IR invariant — the synthesized JSON program is the source of truth, and any lowering of it is checked against the interpreter, never the other way around.
 
 ## verification
@@ -147,9 +149,10 @@ libraryRegistry(root): {
 A lowering compiles a JSON program to target-language source. The JSON interpreter is the reference semantics; lowered code must match it.
 
 ```
-lower(program, harness, options?): { source, metadata }   // options.target: "javascript" (default) | "python"
+lower(program, harness, options?): { source, metadata }   // options.target: "javascript" (default) | "python" | "sql"
 lowerJavaScript(program, harness, options?): { source, metadata }
 lowerPython(program, harness, options?): { source, metadata }
+lowerSql(program, harness, options?): { source, metadata }
 
 metadata = {
   target: string,
@@ -161,7 +164,7 @@ metadata = {
 }
 ```
 
-`lower` dispatches on `options.target` (default `"javascript"`); JavaScript and Python both ship. All live in `copper-ilp/core`, and the mode/feasibility analysis is shared (`analyze.js`). Modes are mandatory: body-predicate modes come from the harness manifest, and the target predicate's modes are passed in `options.modes` (a `{ predicate: ["in"|"out", …] }` map). `options.implementation` (and `options.core` for JS, `options.runtime` for Python) set the module specifiers the generated source imports. A program that is unmoded, ill-moded, or uses compound/non-variable arguments is reported `infeasible`; recursion lowers with a `caveats` report. Because every target is checked against the interpreter, the two agree with each other — a cross-target conformance check. See [lowering](lowering.md).
+`lower` dispatches on `options.target` (default `"javascript"`); JavaScript, Python, and SQL ship. All live in `copper-ilp/core`. The mode/feasibility analysis is shared by the host-language targets (`analyze.js`); SQL has its own relational feasibility. For JS/Python, modes are mandatory: body-predicate modes come from the harness manifest and the target predicate's modes from `options.modes` (a `{ predicate: ["in"|"out", …] }` map); a program that is unmoded, ill-moded, or uses compound/non-variable arguments is `infeasible`, and recursion lowers with a `caveats` report. SQL needs no modes (data flow comes from joins) but has a narrower envelope — flat, range-restricted, single-predicate linear recursion — and reports anything outside it as `infeasible` rather than emitting wrong SQL. Every target is checked against the interpreter, so they agree with one another — a cross-target conformance check. See [lowering](lowering.md).
 
 ## the synthesis server
 
@@ -179,7 +182,7 @@ GET  /v1/libraries                   list curated libraries and versions
 GET  /v1/libraries/{lib}/{version}   { manifest, implementations }
 ```
 
-Synthesis is asynchronous by default: `POST /v1/synthesize` starts a job and returns its id, and the agent polls `/v1/jobs/{id}` or subscribes to `/v1/jobs/{id}/stream`. A `Prefer: respond-sync` header waits up to `syncTimeoutMs` (default 5000) for completion and returns the solution inline, otherwise falling back to the job id. The `solution` always carries the JSON `program`, plus `lowerings` for requested targets, a per-example `proof`, a `harness_manifest` summary, and `stats`. The agent supplies the bias and examples; the named `library` supplies the hash-verified background. Every request must carry a `budget`. See [the synthesis server](server.md).
+Synthesis is asynchronous by default: `POST /v1/synthesize` starts a job and returns its id, and the agent polls `/v1/jobs/{id}` or subscribes to `/v1/jobs/{id}/stream`. A `Prefer: respond-sync` header waits up to `syncTimeoutMs` (default 5000) for completion and returns the solution inline, otherwise falling back to the job id. The `solution` always carries the JSON `program`, plus `lowerings` for requested targets, a per-example `proof`, a `harness_manifest` summary, and `stats`. The agent supplies the bias and examples; the named `library` supplies the hash-verified background. Every request must carry a `budget`. The server caches lowered source (`makeLoweringCache` from `copper-ilp/engine`; key includes the program, options, harness `semantic_hash`, and `LOWERING_VERSION`), so a repeated program isn't re-lowered. See [the synthesis server](server.md).
 
 ## stability
 

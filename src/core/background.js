@@ -7,7 +7,7 @@
 //   - a generator function (args, sub) that yields a substitution for each way the
 //     goal succeeds — for non-deterministic predicates and for binding outputs;
 //   - a plain function (args, sub) returning `true` (the goal holds, no new
-//     bindings), a substitution Map (the goal holds with these bindings), or a
+//     bindings), a substitution (the goal holds with these bindings), or a
 //     falsy value (the goal fails).
 //
 // `args` are the goal's argument terms as written; the predicate walks or applies
@@ -32,7 +32,7 @@ export function makeRegistry(predicates = {}) {
       }
       const result = fn(args, sub)
       if (result === true) yield sub
-      else if (result instanceof Map) yield result
+      else if (result && typeof result === "object") yield result // a substitution
       // a falsy result means the goal fails: yield nothing
     }
   }

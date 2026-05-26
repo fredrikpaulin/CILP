@@ -138,6 +138,34 @@ synthesizes logic programs from examples, with pruning that scales with the sear
   first real cross-target conformance check — the JavaScript and Python lowerings of the
   same program agree solution-for-solution. Python execution tests skip where `python3` is
   absent. (#029)
+- SQL lowering (`lowerSql` in copper-core, `src/core/lowering/sql.js`) — the third target,
+  and the first that isn't mode-directed. A program compiles to relational queries: each
+  head predicate becomes a `CREATE VIEW`, a clause a `SELECT` over its body relations
+  (shared variables → join equalities, constants → filters, head args → projected columns
+  `c0…`), multiple clauses `UNION`, and single-predicate linear self-recursion a
+  `WITH RECURSIVE` CTE. SQL needs no modes (joins carry the data flow) but has a narrower
+  envelope: no compound terms, only range-restricted rules (every head variable bound by
+  the body), and no non-linear or mutual recursion — each reported `infeasible` with a
+  reason rather than emitting wrong SQL. Emitted SQL is verified against the interpreter
+  via `bun:sqlite`, including the recursive CTE's full-closure fixpoint. (#030)
+- Target-biased synthesis (`synthesize(problem, { target })`). With a declared target, the
+  search accepts a covering candidate only if it also lowers cleanly to that target;
+  covering-but-infeasible candidates are skipped (counted in `stats.candidates_target_skipped`)
+  and the search continues. The gate reuses the lowering's own feasibility report, so the
+  bias and the lowering can't disagree, and modes for the mode-directed targets come from
+  the bias's predicate declarations. Measured: given an unsafe covering rule ahead of the
+  real one, target-unaware synthesis returns the rule that won't lower while `target: "sql"`
+  (or `"javascript"`) skips it and returns one that does — the cost being that biased
+  synthesis reports `found: false` if every covering program is target-infeasible. Default
+  (no target) behaviour is unchanged. (#032)
+- Lowering cache on the server (`makeLoweringCache` in copper-ilp/engine). Lowered source
+  is a pure function of the program, the lowering options, the harness's semantics, and the
+  lowering code, so the server memoizes it: a program already lowered to a target returns
+  from the cache instead of being recomputed, byte-identical. The key is a canonical form of
+  the program and options plus the harness `semantic_hash` and a new `LOWERING_VERSION`
+  stamp (bump it when a lowering's output changes, so the cache never serves stale source).
+  `makeHandler` holds one cache per server instance (`options.loweringCache` injects one);
+  the store is unbounded for now. (#033)
 
 ### Fixed
 
@@ -145,6 +173,15 @@ synthesizes logic programs from examples, with pruning that scales with the sear
   zero-initialized memory. A fresh `ArrayBuffer` is zeroed but a recycled Metal pool
   buffer is not, so stale `child_offsets` were read as real children on the GPU path —
   surfaced by the #014 coverage parity test on Apple Silicon. (#013/#014)
+
+- The interpreter's recursion bound now measures true recursion depth. `maxDepth`
+  (`max_recursion_depth`) previously counted total program-clause expansions along a
+  branch, so a long non-recursive conjunction of program goals could hit the bound with
+  no recursion involved. Each goal now tracks per-predicate active expansions among its
+  ancestors and is cut only when its own predicate is already active `maxDepth` times —
+  so non-recursive bodies run freely while genuine (including mutual) recursion stays
+  bounded and terminating. Direct-recursion behaviour is unchanged (the #003 resolution
+  tests pass as-is). (#034)
 
 - ARC transformation induction (`applications/arc/`): a grid representation, a broad
   library of grid-id-parameterized background predicates (cell, adjacency, mirrors,
@@ -162,6 +199,15 @@ synthesizes logic programs from examples, with pruning that scales with the sear
 
 ### Changed
 
+- The substitution is now a persistent radix trie instead of a copied `Map`. `unify`
+  bound a variable by copying the whole `Map` to preserve its functional "new
+  substitution or null" contract, making a single unify over a deep or wide term O(n²) in
+  its bindings. The new `Sub` (in `unify.js`) path-copies a small trie keyed on the
+  variable id — O(log) per bind, structurally shared, still immutable — and keeps a
+  Map-like `has`/`get`/`size` interface, accepting a plain `Map` seed so existing callers
+  and tests are unchanged. A microbenchmark (`bun bench/sub_bench.js`) shows ~2x (wide)
+  and ~3.4x (deep) speedups at 2000 bindings, with a small constant-factor cost on tiny
+  substitutions. (#020)
 - Package split into `copper-ilp/core` (universal: term language, interpreter,
   verification — no native, GPU, or Node-only dependencies) and `copper-ilp/engine`
   (Bun: enumerator, constraint learner, `synthesize`), via subpath exports under one

@@ -3,9 +3,14 @@
 // the last choice point. This is copper-core's reference interpreter (Appendix A
 // §A.4) — the meaning of a JSON program is whatever this yields.
 //
-// `maxDepth` caps the number of program-clause expansions along a derivation
-// branch; background-predicate calls do not count. It is a conservative
-// termination guard, not a true per-predicate recursion-depth measure (#034).
+// `maxDepth` (the bias's `max_recursion_depth`) caps how many times a single predicate
+// may be simultaneously active along a derivation path. Each goal carries the count of
+// active program-clause expansions per predicate among its ancestors; a goal whose
+// predicate already has `maxDepth` active expansions above it is not expanded further.
+// So a long *non-recursive* conjunction of program goals is never cut — sibling goals
+// don't inherit each other's depth — while genuine recursion stays bounded (and so
+// terminating, since each predicate can nest at most `maxDepth` deep). Background-
+// predicate calls don't expand clauses and don't count. (#034)
 
 import { unify, applySubstitution } from "./unify.js"
 
@@ -54,21 +59,24 @@ function renameClause(clause, fresh) {
   return { head: renameAtom(clause.head), body: clause.body.map(renameAtom) }
 }
 
-function* step(goals, program, registry, sub, depth, maxDepth, fresh) {
+// Goals carry `counts`: a Map<predicate, active-expansions> for the path of ancestors
+// above the goal. Expanding a goal extends the count for its own predicate for the
+// goals it introduces (the clause body); siblings keep the parent's counts.
+function* step(goals, program, registry, sub, maxDepth, fresh) {
   if (goals.length === 0) {
     yield sub
     return
   }
-  const [goal, ...rest] = goals
+  const [{ atom: goal, counts }, ...rest] = goals
 
   if (registry.has(goal.predicate)) {
     for (const s of registry.solve(goal.predicate, goal.args, sub)) {
-      yield* step(rest, program, registry, s, depth, maxDepth, fresh)
+      yield* step(rest, program, registry, s, maxDepth, fresh)
     }
     return
   }
 
-  if (depth >= maxDepth) return // refuse to descend further
+  if ((counts.get(goal.predicate) ?? 0) >= maxDepth) return // recursion-depth bound
 
   for (const clause of program.clauses) {
     if (clause.head.predicate !== goal.predicate) continue
@@ -76,7 +84,10 @@ function* step(goals, program, registry, sub, depth, maxDepth, fresh) {
     const renamed = renameClause(clause, fresh)
     const s = unifyArgs(goal.args, renamed.head.args, sub)
     if (s === null) continue
-    yield* step([...renamed.body, ...rest], program, registry, s, depth + 1, maxDepth, fresh)
+    const childCounts = new Map(counts)
+    childCounts.set(goal.predicate, (counts.get(goal.predicate) ?? 0) + 1)
+    const body = renamed.body.map(atom => ({ atom, counts: childCounts }))
+    yield* step([...body, ...rest], program, registry, s, maxDepth, fresh)
   }
 }
 
@@ -86,7 +97,7 @@ export function* interpret(program, registry, query, options = {}) {
   const maxDepth = options.maxDepth ?? 50
   let next = maxId(program, query) + 1
   const fresh = () => next++
-  yield* step([query], program, registry, new Map(), 0, maxDepth, fresh)
+  yield* step([{ atom: query, counts: new Map() }], program, registry, new Map(), maxDepth, fresh)
 }
 
 function applySubAtom(atom, sub) {
@@ -97,22 +108,22 @@ function applySubAtom(atom, sub) {
 // the (partially) ground atom and how it was discharged — a clause head expansion or a
 // background fact. Yields { sub, trace } at each full solution; backtracking copies the
 // trace per branch so it never leaks across choice points.
-function* stepProof(goals, program, registry, sub, depth, maxDepth, fresh, trace) {
+function* stepProof(goals, program, registry, sub, maxDepth, fresh, trace) {
   if (goals.length === 0) {
     yield { sub, trace }
     return
   }
-  const [goal, ...rest] = goals
+  const [{ atom: goal, counts }, ...rest] = goals
 
   if (registry.has(goal.predicate)) {
     for (const s of registry.solve(goal.predicate, goal.args, sub)) {
-      yield* stepProof(rest, program, registry, s, depth, maxDepth, fresh,
+      yield* stepProof(rest, program, registry, s, maxDepth, fresh,
         [...trace, { goal: applySubAtom(goal, s), via: "background" }])
     }
     return
   }
 
-  if (depth >= maxDepth) return
+  if ((counts.get(goal.predicate) ?? 0) >= maxDepth) return
 
   for (let ci = 0; ci < program.clauses.length; ci++) {
     const clause = program.clauses[ci]
@@ -121,7 +132,10 @@ function* stepProof(goals, program, registry, sub, depth, maxDepth, fresh, trace
     const renamed = renameClause(clause, fresh)
     const s = unifyArgs(goal.args, renamed.head.args, sub)
     if (s === null) continue
-    yield* stepProof([...renamed.body, ...rest], program, registry, s, depth + 1, maxDepth, fresh,
+    const childCounts = new Map(counts)
+    childCounts.set(goal.predicate, (counts.get(goal.predicate) ?? 0) + 1)
+    const body = renamed.body.map(atom => ({ atom, counts: childCounts }))
+    yield* stepProof([...body, ...rest], program, registry, s, maxDepth, fresh,
       [...trace, { goal: applySubAtom(goal, s), via: "clause", clause: ci }])
   }
 }
@@ -134,7 +148,7 @@ export function firstProof(program, registry, goal, options = {}) {
   const maxDepth = options.maxDepth ?? 50
   let next = maxId(program, goal) + 1
   const fresh = () => next++
-  for (const { sub, trace } of stepProof([goal], program, registry, new Map(), 0, maxDepth, fresh, [])) {
+  for (const { sub, trace } of stepProof([{ atom: goal, counts: new Map() }], program, registry, new Map(), maxDepth, fresh, [])) {
     return { covered: true, trace: trace.map(e => ({ goal: applySubAtom(e.goal, sub), via: e.via })) }
   }
   return { covered: false, trace: null }

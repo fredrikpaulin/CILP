@@ -5,10 +5,16 @@
 
 import { lowerJavaScript } from "./javascript.js"
 import { lowerPython } from "./python.js"
+import { lowerSql } from "./sql.js"
 
-export { lowerJavaScript, lowerPython }
+export { lowerJavaScript, lowerPython, lowerSql }
 
-const targets = { javascript: lowerJavaScript, python: lowerPython }
+// Lowered source is deterministic from a program, its options/harness, and the lowering
+// code. This version stamps that code: bump it whenever a lowering's output changes, so a
+// cache keyed on it (#033) never serves stale source from an older lowering.
+export const LOWERING_VERSION = "1"
+
+const targets = { javascript: lowerJavaScript, python: lowerPython, sql: lowerSql }
 
 export function lower(program, harness, options = {}) {
   const target = options.target ?? "javascript"
