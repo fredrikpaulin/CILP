@@ -15,6 +15,13 @@
 // already-considered or simpler candidate isn't. The matching is renaming-invariant
 // via canonical forms; theta-subsumption (too_specific) is complete for these clauses
 // but bounded, since variable counts are small.
+//
+// One caveat (#036): too_specific's theta-subsumption rests on coverage monotonicity —
+// a more-general clause covers everything a more-specific one does. That holds for
+// relational background predicates but fails for *moded* ones, which fail when an input
+// is unbound: adding a body literal that binds that input can make a previously-failing
+// call succeed, so a more-specific clause can cover MORE. When the bias declares input
+// modes, too_specific is therefore disabled to stay sound; the other three are unaffected.
 
 // --- rendering ---------------------------------------------------------------
 
@@ -165,6 +172,9 @@ export function isTypeUnsatisfiable(clause, predTypes) {
 export function makeConstraints(problem) {
   const noise = problem.noise_tolerance ?? 0
   const predTypes = buildPredTypes(problem.bias)
+  // Moded background: any body predicate that declares an `in` position is functional and
+  // can fail on unbound input, which breaks too_specific's monotonicity assumption (#036).
+  const moded = (problem.bias.body_predicates ?? []).some(p => Array.isArray(p.mode) && p.mode.includes("in"))
   const seen = new Set()
   const tooGeneralSets = [] // each: array of canonical clause strings
   const tooSpecificClauses = [] // each: a clause object
@@ -191,7 +201,7 @@ export function makeConstraints(problem) {
     const covN = cov.negatives.filter(n => n.covered).length
     const covP = cov.positives.filter(p => p.covered).length
     if (covN > noise) tooGeneralSets.push(clauseKeys(program))
-    if (cov.positives.length > 0 && covP < cov.positives.length && program.clauses.length === 1) {
+    if (!moded && cov.positives.length > 0 && covP < cov.positives.length && program.clauses.length === 1) {
       tooSpecificClauses.push(program.clauses[0])
     }
   }

@@ -158,6 +158,29 @@ synthesizes logic programs from examples, with pruning that scales with the sear
   (or `"javascript"`) skips it and returns one that does — the cost being that biased
   synthesis reports `found: false` if every covering program is target-infeasible. Default
   (no target) behaviour is unchanged. (#032)
+- C lowering (`lowerC` in copper-core, `src/core/lowering/c.js`) — the fourth and deepest
+  target. With no relational runtime, unification is compiled fully away into mode-directed
+  functions: each head predicate becomes `bool p(in-args…, out-ptrs…)` returning whether it
+  holds — body goals are calls (in by value, out by pointer), guards are bools in the
+  conjunction, multiple clauses are tried in order, recursion is a recursive call, and
+  deconstruction allocates nothing. It requires complete modes (shared analysis with
+  JS/Python) and determinism — a `nondet` primitive is reported infeasible. Ships a C term
+  model (`src/core/lowering/copper.h`) and a C implementation of the `lists` primitives
+  (`libraries/lists/1.0.0/c.c`). Emitted C is verified by compiling it with `cc` and running
+  it against the examples (including a recursive `last/2`); those tests skip where no C
+  compiler is present. The registry maps the `c` target to the `.c` extension. (#031)
+- Structural coverage in the search (`structuralCoverage`, `structuralEvaluator`,
+  `factPatterns` in copper-ilp/engine) and an `options.evaluate` hook on `synthesize`. For
+  the body-less (fact) subset — where a fact covers an example exactly when its head
+  unifies with it, no background — coverage is computed through the packed representation
+  (`unifyPacked`, the CPU oracle the Metal `coverage` kernel mirrors), the GPU-eligible
+  path; `bench/structural_gpu.js` times that op (`coverageVector`, auto-backend) over a
+  large example batch. The evaluator hook wires this into the search; the CPU SLD
+  interpreter stays the default for everything else. Investigation finding (recorded in
+  the ticket): the two originally-imagined GPU-in-search paths don't bite for the current
+  design — a structural pre-filter is useless in the variable-only convention, and
+  packable-background coverage is a join, not structural unification. Batched GPU dispatch
+  in the loop and SLD-with-background on the GPU are deferred. (#035)
 - Lowering cache on the server (`makeLoweringCache` in copper-ilp/engine). Lowered source
   is a pure function of the program, the lowering options, the harness's semantics, and the
   lowering code, so the server memoizes it: a program already lowered to a target returns
@@ -166,6 +189,12 @@ synthesizes logic programs from examples, with pruning that scales with the sear
   stamp (bump it when a lowering's output changes, so the cache never serves stale source).
   `makeHandler` holds one cache per server instance (`options.loweringCache` injects one);
   the store is unbounded for now. (#033)
+- End-to-end demo (`demo/`, `bun run demo`) — a smoke test that synthesizes `second/2`
+  (composes `tail`+`head`) and probes `last/2` (recursive) over the curated `lists`
+  background, verifies each result by *executing* it against the examples with proof traces,
+  and exits non-zero if the required problem fails. `last/2` is reported as skipped-with-
+  reason (the naive enumerator doesn't reach a two-clause recursive program in budget,
+  though the reference program verifies). It was building this demo that surfaced #036.
 
 ### Fixed
 
@@ -173,6 +202,15 @@ synthesizes logic programs from examples, with pruning that scales with the sear
   zero-initialized memory. A fresh `ArrayBuffer` is zeroed but a recycled Metal pool
   buffer is not, so stale `child_offsets` were read as real children on the GPU path —
   surfaced by the #014 coverage parity test on Apple Silicon. (#013/#014)
+
+- Constraint learner: `too_specific` (θ-subsumption) pruning is no longer applied when the
+  bias declares moded background predicates. The pruning assumed coverage monotonicity (a
+  more-general clause covers everything a more-specific one does), which holds for relational
+  predicates but fails for moded/functional ones — a body literal that binds an input can
+  make a previously-failing call succeed, so a more-specific clause can cover *more*. This
+  pruned the correct program for `second/2` over the moded `lists` background. When any body
+  predicate declares an `in` mode, `too_specific` is disabled; biases without modes (the
+  kinship/successor benchmark) are unchanged. Surfaced by the end-to-end demo. (#036)
 
 - The interpreter's recursion bound now measures true recursion depth. `maxDepth`
   (`max_recursion_depth`) previously counted total program-clause expansions along a

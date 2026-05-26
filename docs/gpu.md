@@ -57,7 +57,25 @@ On an M-series Mac, a 4000 × 400 frontier — 1.6 million `(candidate, example)
 
 What it does **not** measure is end-to-end synthesis speedup on the background-using
 benchmark suite — that coverage check is full SLD resolution with arbitrary JavaScript
-background predicates, which cannot move to the GPU. Putting the GPU inside the
-synthesize search (a structural pre-filter, or packed background facts) is tracked as
-#035. The honest headline is the structural-unification primitive, measured against its
-own CPU reference on a characterized workload.
+background predicates, which cannot move to the GPU. The honest headline is the
+structural-unification primitive, measured against its own CPU reference on a
+characterized workload.
+
+### structural coverage in the search (#035)
+
+Putting the GPU *inside* the synthesize search ran into a real limit, worth stating
+plainly. The two paths #035 imagined don't bite for the current design: a structural
+pre-filter is useless in the variable-only convention (a variable-only head unifies with
+every example, so it rejects nothing), and "packable background" coverage is a join over
+the fact base, not the term-vs-term structural unification the kernels do.
+
+The one regime where structural unification genuinely *is* coverage is body-less (fact)
+clauses — a fact covers an example exactly when its head unifies with it, no background.
+For that subset, `synthesize` accepts an injected `evaluate` hook, and `structuralEvaluator`
+routes coverage through the packed representation (`unifyPacked` — the CPU oracle the Metal
+`coverage` kernel mirrors). `bench/structural_gpu.js` times that operation (`coverageVector`,
+auto-backend) over a large example batch, so on Apple Silicon the structural coverage the
+search performs shows the same batched speedup as the primitive. The CPU SLD interpreter
+remains the default evaluator for everything else. Deferred: batched GPU dispatch *in* the
+loop (the GPU wants a candidate batch, not one dispatch per candidate), and
+SLD-with-background on the GPU, which would need a datalog-join-on-GPU effort of its own.

@@ -44,6 +44,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "bun test tests/"
+    "test": "bun test tests/",
+    "demo": "bun demo/demo.js"
   }
 }

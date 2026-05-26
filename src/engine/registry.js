@@ -20,7 +20,7 @@ const isUrl = root => root.includes("://")
 // Per-target implementation file extension. `load()` stays .js — it imports and runs the
 // implementation, which only works for the JavaScript target; other targets are fetched as
 // source via implementationSource and run by their own runtime.
-const TARGET_EXTENSION = { javascript: ".js", python: ".py" }
+const TARGET_EXTENSION = { javascript: ".js", python: ".py", sql: ".sql", c: ".c" }
 
 // Numeric, dotted-version comparison. Enough for the curated set; not a full semver.
 function compareVersions(a, b) {

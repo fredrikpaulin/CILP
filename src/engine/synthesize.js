@@ -80,17 +80,25 @@ async function prepare(problem, options) {
     ? candidate => lower(candidate, null, { target, modes }).metadata.feasibility !== "infeasible"
     : () => true
 
+  const examples = { positives: problem.positives, negatives: problem.negatives }
+  const evalOptions = { maxDepth: problem.bias.max_recursion_depth }
+  // The coverage evaluator. Default is the CPU SLD interpreter; a caller can inject an
+  // alternative — e.g. the packed structural evaluator (#035), which routes coverage
+  // through the GPU-eligible representation for the body-less/structural subset.
+  const evaluate = options.evaluate ?? (candidate => coverage(candidate, registry, examples, evalOptions))
+
   return {
     registry,
     enumerate: options.enumerate ?? defaultEnumerate,
     constraints: options.constraints === false ? null : makeConstraints(problem),
     targetGate,
+    evaluate,
     targetCoverage: problem.target_coverage ?? 1.0,
     noiseTolerance: problem.noise_tolerance ?? 0,
     maxCandidates: problem.max_candidates ?? Infinity,
     maxTimeMs: problem.max_time_ms ?? Infinity,
-    examples: { positives: problem.positives, negatives: problem.negatives },
-    evalOptions: { maxDepth: problem.bias.max_recursion_depth }
+    examples,
+    evalOptions
   }
 }
 
@@ -101,7 +109,7 @@ const HEARTBEAT = 256
 // exactly one terminal step (done: true). The terminal solution is what `synthesize`
 // returns; the improvements are the best-so-far the streaming server emits.
 function* search(prepared, problem) {
-  const { registry, enumerate, constraints, targetGate, targetCoverage, noiseTolerance, maxCandidates, maxTimeMs, examples, evalOptions } = prepared
+  const { enumerate, constraints, targetGate, evaluate, targetCoverage, noiseTolerance, maxCandidates, maxTimeMs } = prepared
   const start = Date.now()
   let tested = 0, pruned = 0, skipped = 0, best = null
 
@@ -112,7 +120,7 @@ function* search(prepared, problem) {
     }
     if (constraints && constraints.prune(candidate)) { pruned++; continue }
     tested++
-    const cov = coverage(candidate, registry, examples, evalOptions)
+    const cov = evaluate(candidate)
     if (constraints) constraints.learn(candidate, cov)
 
     let improved = false

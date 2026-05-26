@@ -14,7 +14,7 @@ import { lower } from "copper-ilp/core"
 const { source, metadata } = lower(program, manifest, { target: "javascript", modes: { grandparent: ["in", "out"] } })
 ```
 
-`lower` dispatches on `options.target` (default `"javascript"`); `lowerJavaScript`, `lowerPython`, and `lowerSql` are the per-target passes directly. The mode-checking, feasibility, and clause-grouping analysis is shared across the mode-directed targets (`analyze.js`); SQL has its own relational feasibility analysis. Only the rendering into source differs.
+`lower` dispatches on `options.target` (default `"javascript"`); `lowerJavaScript`, `lowerPython`, `lowerSql`, and `lowerC` are the per-target passes directly. The mode-checking, feasibility, and clause-grouping analysis is shared across the mode-directed targets — JavaScript, Python, and C — via `analyze.js`; SQL has its own relational feasibility analysis. Only the rendering into source differs.
 
 ## modes do the work
 
@@ -52,7 +52,7 @@ Not every program lowers. `metadata` carries a feasibility report:
 
 ## targets
 
-Three targets ship today. The host-language pair render the same mode-directed plan in their own syntax; SQL is relational and takes a different shape.
+Four targets ship today. The host-language pair (JavaScript, Python) render the same mode-directed plan in their own syntax; SQL is relational and takes a different shape; C compiles unification fully away into mode-directed functions.
 
 - **JavaScript** (`target: "javascript"`) — generators yielding out-arg arrays; imports `makeRegistry`/`applySubstitution` from `copper-ilp/core` and `predicates` from the per-target implementation.
 - **Python** (`target: "python"`) — the same structure as indentation-scoped generators (`def lowered_…`, nested `for` loops, `yield [..]`); imports `make_registry`/`apply_substitution` from a small `copper_runtime` module and `predicates` from the per-target implementation. Terms are plain dicts of the same JSON shape.
@@ -77,6 +77,24 @@ SQL derives its data flow from joins, so it does **not** require mode declaratio
 
 SQL recursion has no depth caveat: a recursive CTE computes the full fixpoint, which matches the interpreter once its `maxDepth` is high enough to reach the same closure. A lowered program expects each primitive relation to exist as a table with columns `c0…c{arity-1}`. The narrowness of this envelope is what motivates target-biased synthesis (#032) — steering the search toward shapes that lower cleanly to SQL.
 
+### C
+
+**C** (`target: "c"`) is the deepest target. The host-language lowerings keep a relational runtime (terms threaded through a registry); C has none, so unification is compiled *fully* away into mode-directed function calls with no runtime term allocation. Each head predicate becomes a `bool p(in-args…, out-ptrs…)` that returns whether it holds: a body goal is a call whose in-args are values and out-args are written through pointers, a guard (a deterministic test like `empty`) is a `bool` in the conjunction, multiple clauses are tried in order, and recursion is a recursive call.
+
+```c
+// second(L, X) :- tail(L, T), head(T, X).
+bool second(term* _in0, term** out_0) {
+  {
+    term *v_L = _in0;
+    term *v_T; term *v_X;
+    if (tail(v_L, &v_T) && head(v_T, &v_X)) { *out_0 = v_X; return true; }
+  }
+  return false;
+}
+```
+
+C forces two requirements the other targets relax. Modes must be **complete** — every position of every predicate (the mode-directed analysis is shared with JS/Python via `analyze.js`). And the program must be **deterministic**: C has no backtracking runtime, so a non-deterministic primitive (declared `nondet` in the manifest, like `member`) is reported infeasible. A lowered program compiles against `copper.h` (the term value model — atom/nil/cons) and a per-target C implementation of its primitives (`c.c` for the `lists` library: `head`/`tail`/`empty`, mode-directed and allocation-free). Deconstruction-only programs (`second`, `last`) allocate nothing; constructing terms is outside the current C subset. Recursion lowers to native recursive calls with a caveat (no depth bound), and emitted C is verified by compiling it with `cc` and running it against the examples.
+
 ## cross-target conformance
 
 Because every target is checked against the same interpreter, two targets that each match the interpreter must match each other. That's the cross-target conformance check the harness work was building toward (it had no meaning with one target): lower the same program to JavaScript and to Python, run both over the same examples, and confirm they produce the same solutions. Copper's tests do exactly this for a `lists` program — JS and Python lowerings agree solution-for-solution — which is a strong correctness signal, because an agreement across two independent code generators and two independent primitive implementations is hard to fake.
@@ -87,4 +105,4 @@ Lowering is target-*unaware* by default: synthesize first, lower after, report f
 
 The effect is measurable: given the unsafe rule `gp(X, Z) :- parent(X, Y)` (which covers the examples but lowers to neither SQL nor JavaScript, since `Z` is never produced) ahead of the real `gp(X, Z) :- parent(X, Y), parent(Y, Z)`, target-unaware synthesis returns the first — and it won't lower — while `target: "sql"` skips it and returns the one that does. The cost is generality: if every covering program is target-infeasible, biased synthesis reports `found: false` rather than hand back something unusable. JavaScript and Python targets need the bias to declare modes (the gate calls the mode-directed lowering); SQL needs none.
 
-The host-language lowerings (JavaScript, Python) are faithful but thin. They compile away the clause machinery (head unification, standardize-apart, clause selection) into native control flow, but a primitive call still goes through the relational implementation rather than a mode-specialized function, because that's the implementation contract the harness defines. A deeper lowering that calls primitives in fully mode-directed form is future work. SQL is a different kind of target — a genuine relational compilation, not a thin layer over a runtime — but it pays for that with a narrower envelope (flat, range-restricted, linearly recursive). What's pinned now is the contract — `lower(program, harness) => { source, metadata }`, checked against the interpreter — and three targets that satisfy it: two that agree with each other, and one that matches the interpreter's fixpoint on the relational subset.
+The host-language lowerings (JavaScript, Python) are faithful but thin. They compile away the clause machinery (head unification, standardize-apart, clause selection) into native control flow, but a primitive call still goes through the relational implementation rather than a mode-specialized function, because that's the implementation contract the harness defines. SQL is a different kind of target — a genuine relational compilation — but pays for it with a narrower envelope (flat, range-restricted, linearly recursive). C goes furthest: it is the "deeper lowering that calls primitives in fully mode-directed form" the host-language targets defer, with no relational runtime at all — but it demands complete modes and determinism in exchange. What's pinned now is the contract — `lower(program, harness) => { source, metadata }`, checked against the interpreter — and four targets that satisfy it: two host languages that agree with each other, SQL that matches the interpreter's fixpoint on the relational subset, and C that matches it (via a compiler) on the deterministic, fully-moded subset.

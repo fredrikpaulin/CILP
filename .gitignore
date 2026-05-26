@@ -10,3 +10,4 @@ shaders/*.air
 # lowering test scratch (generated modules written then re-imported / re-run)
 tests/.lowering-tmp/
 tests/.py-tmp/
+tests/.c-tmp/

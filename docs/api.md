@@ -2,7 +2,7 @@
 
 The agent-facing surface is one function. Everything else is the shape of its input and output.
 
-> This reference describes the intended API. The system is under construction; not every field is wired up yet. Where behavior is still being settled, the roadmap says so.
+> The package is pre-1.0, so the surface can still shift, but the contract described here — the problem and solution shapes, the term language, verification, harnesses, lowering, and the server — is built and tested. The [roadmap](roadmap.md) marks what's shipped and what remains.
 
 ## `synthesize(problem)`
 
@@ -149,10 +149,11 @@ libraryRegistry(root): {
 A lowering compiles a JSON program to target-language source. The JSON interpreter is the reference semantics; lowered code must match it.
 
 ```
-lower(program, harness, options?): { source, metadata }   // options.target: "javascript" (default) | "python" | "sql"
+lower(program, harness, options?): { source, metadata }   // options.target: "javascript" (default) | "python" | "sql" | "c"
 lowerJavaScript(program, harness, options?): { source, metadata }
 lowerPython(program, harness, options?): { source, metadata }
 lowerSql(program, harness, options?): { source, metadata }
+lowerC(program, harness, options?): { source, metadata }
 
 metadata = {
   target: string,
@@ -164,7 +165,7 @@ metadata = {
 }
 ```
 
-`lower` dispatches on `options.target` (default `"javascript"`); JavaScript, Python, and SQL ship. All live in `copper-ilp/core`. The mode/feasibility analysis is shared by the host-language targets (`analyze.js`); SQL has its own relational feasibility. For JS/Python, modes are mandatory: body-predicate modes come from the harness manifest and the target predicate's modes from `options.modes` (a `{ predicate: ["in"|"out", …] }` map); a program that is unmoded, ill-moded, or uses compound/non-variable arguments is `infeasible`, and recursion lowers with a `caveats` report. SQL needs no modes (data flow comes from joins) but has a narrower envelope — flat, range-restricted, single-predicate linear recursion — and reports anything outside it as `infeasible` rather than emitting wrong SQL. Every target is checked against the interpreter, so they agree with one another — a cross-target conformance check. See [lowering](lowering.md).
+`lower` dispatches on `options.target` (default `"javascript"`); JavaScript, Python, SQL, and C ship. All live in `copper-ilp/core`. The mode/feasibility analysis is shared by the mode-directed targets (`analyze.js`); SQL has its own relational feasibility. For JS/Python/C, modes are mandatory: body-predicate modes come from the harness manifest and the target predicate's modes from `options.modes` (a `{ predicate: ["in"|"out", …] }` map); a program that is unmoded, ill-moded, or uses compound/non-variable arguments is `infeasible`, and recursion lowers with a `caveats` report. C additionally requires determinism (no `nondet` primitives — there's no backtracking runtime) and compiles unification fully away into mode-directed functions over `copper.h`'s term model. SQL needs no modes (data flow comes from joins) but has a narrower envelope — flat, range-restricted, single-predicate linear recursion — and reports anything outside it as `infeasible` rather than emitting wrong SQL. Every target is checked against the interpreter, so they agree with one another — a cross-target conformance check. See [lowering](lowering.md).
 
 ## the synthesis server
 

@@ -8,7 +8,7 @@ Inductive Logic Programming has lived almost entirely in Prolog. Copper is built
 
 The name is a small joke: copper is more inductive than silver, and more useful.
 
-> **Status:** early development. The design is settled (see the docs); the implementation is being built phase by phase. The API below describes the intended surface — not all of it runs yet.
+> **Status:** pre-1.0, but substantially built. The clause executor, hypothesis search with constraint learning, the GPU layer, verification with proof traces, harness manifests with conformance and a library registry, lowering to four targets (JavaScript, Python, SQL, C), and an HTTP synthesis server all run and are tested. The surface can still shift before 1.0; the [roadmap](docs/roadmap.md) marks what's shipped and what remains.
 
 ## install
 
@@ -50,6 +50,8 @@ console.log(solution.program)
 
 A problem is a single JSON object. The synthesizer returns the program it found, the coverage proof, and search statistics.
 
+For a runnable end-to-end example, `bun run demo` synthesizes `second/2` (the second element of a list) over a small list library and verifies the result by executing it against the examples, printing a proof trace for each.
+
 ## why Copper
 
 The argument for ILP over an LLM is leverage. An LLM that says "this looks buggy" gives you nothing to hold onto. A synthesized rule — "any fragment matching pattern P is wrong when it lacks property Q" — is a check you can run deterministically across an entire codebase, inspect, and unit-test. ILP produces programs that are provably correct on the given examples, interpretable, and recursive when the problem needs it.
@@ -66,7 +68,10 @@ Requires Bun >= 1.2.0.
 
 - [Overview](docs/overview.md) — how the system fits together
 - [API reference](docs/api.md) — `synthesize`, the problem schema, the term language
-- [Roadmap](docs/roadmap.md) — what's planned, by version
+- [Harness manifests](docs/harness.md) — background contracts, conformance, the library registry
+- [Lowering](docs/lowering.md) — compiling synthesized programs to JavaScript, Python, SQL, and C
+- [Server](docs/server.md) — synthesis over HTTP, async jobs, and streaming
+- [Roadmap](docs/roadmap.md) — what's shipped and what remains
 - [Changelog](CHANGELOG.md)
 
 ## lineage
