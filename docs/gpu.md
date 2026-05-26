@@ -1,6 +1,6 @@
 # The GPU layer
 
-Copper's GPU acceleration runs the inner batch-evaluation loop on Apple Silicon via Metal. This document covers the infrastructure layer — the native bridge and its JavaScript bindings. The ILP-specific shaders and the packing that feeds them arrive later (#013, #014); this is the foundation they stand on.
+Copper's GPU acceleration runs the inner batch-evaluation loop on Apple Silicon via Metal. This document covers the infrastructure layer — the native bridge and its JavaScript bindings — and how the layer is wired in and measured. The packing that feeds the kernels ([packing.md](packing.md)) and the ILP-specific shaders ([shaders.md](shaders.md)) build on this foundation.
 
 ## lineage
 
@@ -12,7 +12,7 @@ What was lifted:
 - `src/engine/gpu/device.js` — Bun FFI bindings to the bridge, plus buffer and dispatch helpers. Initializes the Metal device once at import time.
 - `src/engine/gpu/dispatch.js` — the `run` helper that turns an op-level call into Metal command encoding. Smith's ML-specific parameter builders (matmul, broadcast, axis-reduce) and the f16 kernel-name suffix were dropped.
 - `src/engine/gpu/pool.js` — a power-of-two buffer pool. Bucket sizing is tuned against Copper's batch-scoped allocation pattern in #013.
-- `src/engine/gpu/profile.js` — per-kernel GPU timing and a benchmark harness, the measurement tool #015 uses to report speedup.
+- `src/engine/gpu/profile.js` — per-kernel GPU timing and a benchmark harness, the measurement tool the speedup report (#015) is built on.
 
 ## building
 
@@ -22,11 +22,11 @@ The native bridge and shaders are built with `build.sh`, which requires Apple Si
 bash build.sh
 ```
 
-This compiles `native/libcopper.dylib` from `native/copper_gpu.m`. The shader step is skipped until the `.metal` files land in #014. The built `.dylib` and `.metallib` are generated artifacts and are not committed.
+This compiles `native/libcopper.dylib` from `native/copper_gpu.m` and the ILP shaders into `copper.metallib`. The built `.dylib` and `.metallib` are generated artifacts and are not committed.
 
 ## a note on where this sits
 
-The GPU modules are present but deliberately **not** wired into the engine's import graph. `device.js` initializes Metal at import time, which only works on a Mac with the dylib built — so importing it from the CPU path would break the engine everywhere else. Nothing in `synthesize`, `enumerate`, or `constrain` imports it. The ops layer (#014) is what will pull it in, behind a capability check. Until then, the layer is exercised by one Apple-Silicon-only smoke test (`tests/gpu-smoke.test.js`), which compiles a trivial kernel from source, dispatches it, and reads the result back; it is skipped on every other platform.
+The GPU modules are kept out of the engine's static import graph. `device.js` initializes Metal at import time, which only works on a Mac with the dylib built — so importing it eagerly from the CPU path would break the engine everywhere else. Nothing in `synthesize`, `enumerate`, or `constrain` imports it statically. Instead the ops layer pulls it in *lazily* behind the backend auto-selection: `resolveBackend` chooses the GPU only when Metal is present and the dylib is built, and `coverageVector` / `unifyBatch` / `constraintMask` dynamically import the GPU modules only on that path, so importing the engine stays CPU-safe. The Metal path is exercised by Apple-Silicon-only tests (the smoke test that compiles a trivial kernel, and the op-parity tests that confirm the GPU matches the CPU reference bit for bit); they skip on every other platform.
 
 ## backend selection and measured speedup
 

@@ -112,3 +112,13 @@ export function applySubstitution(term, sub) {
   }
   return term
 }
+
+// Structural equality of two terms. Used where unification can't enforce an equality
+// constraint — e.g. a lowering comparing a value already produced against one a later
+// call returns. On ground terms (the usual case) it is a plain deep compare.
+export function termEqual(a, b) {
+  if (a.type !== b.type) return false
+  if (a.type === "var") return a.id === b.id
+  if (a.type === "const") return a.value === b.value
+  return a.functor === b.functor && a.args.length === b.args.length && a.args.every((x, i) => termEqual(x, b.args[i]))
+}

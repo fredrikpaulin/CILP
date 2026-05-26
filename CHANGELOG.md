@@ -198,6 +198,16 @@ synthesizes logic programs from examples, with pruning that scales with the sear
 
 ### Fixed
 
+- JavaScript and Python lowerings lost an equality constraint when a call to a synthesized
+  predicate had an already-bound argument in an `out` position. The emitter bound the
+  returned value to a fresh name unconditionally, so a clause like
+  `common(Y) :- ancestor(tom, Y), ancestor(bob, Y)` — where the second call's `Y` is already
+  bound by the first — produced the cartesian product (12 rows) instead of the intersection
+  (3 rows). It now captures the returned value and compares it (`termEqual` / `term_eq`),
+  `continue`-ing on mismatch, the same capture-and-compare the C target already used. Added
+  `termEqual` to the core's exports and `term_eq` to the Python runtime; bumped
+  `LOWERING_VERSION` to `"2"` so the cache cannot serve source from the old emitter. (#119)
+
 - `packTermInto` now zeroes its slot region before packing, instead of assuming
   zero-initialized memory. A fresh `ArrayBuffer` is zeroed but a recycled Metal pool
   buffer is not, so stale `child_offsets` were read as real children on the GPU path —
@@ -212,7 +222,26 @@ synthesizes logic programs from examples, with pruning that scales with the sear
   predicate declares an `in` mode, `too_specific` is disabled; biases without modes (the
   kinship/successor benchmark) are unchanged. Surfaced by the end-to-end demo. (#036)
 
-- The interpreter's recursion bound now measures true recursion depth. `maxDepth`
+- `bench/structural_gpu.js` no longer mislabels CPU-vs-CPU noise as a GPU speedup. It labelled
+  the `auto` row "(GPU)" whenever it merely beat the CPU baseline, but with no Metal present
+  `auto` resolves to CPU — the same backend as the baseline — so the ratio was noise. It now
+  reads the resolved backend from `resolveBackend("auto")` and only reports a speedup when that
+  is actually `gpu`; otherwise it says so plainly. (#042)
+
+- GPU tests now gate on real GPU availability, not the platform. `tests/gpu-smoke.test.js`,
+  `tests/ops-gpu.test.js`, and `tests/poolbuffer.test.js` chose `test` vs `test.skip` from
+  `process.platform === "darwin"`, so on a Mac without the dylib built (or where Metal init
+  fails) they ran and failed with `copper: failed to initialize Metal device`, and an
+  aggregate run could crash. They now gate on `await gpuAvailable()` — which probes by
+  importing the device module inside a try and caches the result — so they skip cleanly
+  wherever Metal isn't actually usable and run only where it is. (#120)
+
+- Backend tests are now platform-aware. `tests/backend.test.js` hard-asserted GPU absence
+  (`gpuAvailable() === false`, `resolveBackend("auto") === "cpu"`) — true on a non-Metal
+  box but wrong on Apple Silicon with the dylib built, where the suite consequently failed.
+  It now asserts `gpuAvailable()` is a cached boolean and that `resolveBackend("auto")`
+  matches the platform, so it passes on both. Also removed a leftover Smith buffer-release
+  self-test that ran and printed (`copper: release test: …`) on every Metal device init.
   (`max_recursion_depth`) previously counted total program-clause expansions along a
   branch, so a long non-recursive conjunction of program goals could hit the bound with
   no recursion involved. Each goal now tracks per-predicate active expansions among its

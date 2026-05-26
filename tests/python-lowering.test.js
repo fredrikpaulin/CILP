@@ -94,6 +94,30 @@ t("cross-target: the JavaScript and Python lowerings agree on the same program",
   expect(py).toEqual(js)
 })
 
+t("an already-bound out-arg on a synthesized call is an equality constraint, not a rebind", async () => {
+  // dup(L, X) :- head(L, X), second(L, X).  head binds X to the first element; second's
+  // out X is then already bound, so it must equal the second element rather than rebind
+  // to it. The bug rebound X, so dup wrongly held for any two-element list. Fixed, dup
+  // holds only when the first two elements are equal.
+  const prog = {
+    clauses: [
+      clause(atom("second", V("L"), V("X")), atom("tail", V("L"), V("T")), atom("head", V("T"), V("X"))),
+      clause(atom("dup", V("L"), V("X")), atom("head", V("L"), V("X")), atom("second", V("L"), V("X")))
+    ]
+  }
+  const opts = { modes: { second: ["in", "out"], dup: ["in", "out"] } }
+  const same = cons(C("a"), cons(C("a"), nil))
+  const diff = cons(C("a"), cons(C("b"), nil))
+
+  const sameLowered = (await pythonRun(prog, opts, "lowered_dup", same)).map(row => row[0].value)
+  expect(sameLowered).toEqual(interpreted(prog, atom("dup", same, V("X")), V("X")))
+  expect(sameLowered).toEqual(["a"])
+
+  const diffLowered = (await pythonRun(prog, opts, "lowered_dup", diff)).map(row => row[0].value)
+  expect(diffLowered).toEqual(interpreted(prog, atom("dup", diff, V("X")), V("X")))
+  expect(diffLowered).toEqual([])
+})
+
 // Emission and feasibility need no interpreter — they always run.
 
 test("Python lowering reports an unmoded predicate as non-lowerable", () => {

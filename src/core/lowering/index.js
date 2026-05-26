@@ -13,7 +13,7 @@ export { lowerJavaScript, lowerPython, lowerSql, lowerC }
 // Lowered source is deterministic from a program, its options/harness, and the lowering
 // code. This version stamps that code: bump it whenever a lowering's output changes, so a
 // cache keyed on it (#033) never serves stale source from an older lowering.
-export const LOWERING_VERSION = "1"
+export const LOWERING_VERSION = "2"
 
 const targets = { javascript: lowerJavaScript, python: lowerPython, sql: lowerSql, c: lowerC }
 

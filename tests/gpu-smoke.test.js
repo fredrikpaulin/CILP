@@ -1,12 +1,15 @@
-// GPU bridge smoke test. Apple Silicon only — run `bash build.sh` first to produce
-// native/libcopper.dylib, then `bun test tests/gpu-smoke.test.js`. On any non-macOS
-// platform this is skipped, and the bridge module is imported lazily inside the test
-// body so the suite never tries to initialize Metal where it can't.
+// GPU bridge smoke test. Needs a working Metal GPU — run `bash build.sh` first to produce
+// native/libcopper.dylib, then `bun test tests/gpu-smoke.test.js`. The gate is real GPU
+// availability, not the platform: a Mac without the dylib built (or where Metal init fails)
+// must skip this, not run it and crash. The bridge module is imported lazily inside the
+// test body so the suite never tries to initialize Metal where it can't.
 
 import { test, expect } from "bun:test"
+import { gpuAvailable } from "../src/engine/ops/backend.js"
 
-const onMac = process.platform === "darwin"
-const gpuTest = onMac ? test : test.skip
+// gpuAvailable() probes by importing the device module inside a try and caches the result,
+// so this top-level await resolves to false (never throws) wherever Metal is absent.
+const gpuTest = (await gpuAvailable()) ? test : test.skip
 
 gpuTest("the native bridge compiles and runs a trivial kernel end to end", async () => {
   const device = await import("../src/engine/gpu/device.js")

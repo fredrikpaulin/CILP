@@ -78,6 +78,25 @@ test("recursion lowers as native recursion, reported as a caveat, and matches", 
   expect(lowered).toEqual(["ann", "bob", "jim", "pat"])
 })
 
+test("an already-bound out-arg on a synthesized call is an equality constraint, not a rebind", async () => {
+  // common(Y) :- ancestor(tom, Y), ancestor(bob, Y).  The second ancestor call's Y is
+  // already bound by the first, so its out position is a constraint to match, not a slot
+  // to rebind. The bug rebound it and produced the cartesian product (12 rows) instead of
+  // the intersection of tom's and bob's descendants (3 rows).
+  const prog = {
+    clauses: [
+      clause(atom("ancestor", V("X"), V("Y")), atom("parent", V("X"), V("Y"))),
+      clause(atom("ancestor", V("X"), V("Y")), atom("parent", V("X"), V("Z")), atom("ancestor", V("Z"), V("Y"))),
+      clause(atom("common", V("Y")), atom("ancestor", C("tom"), V("Y")), atom("ancestor", C("bob"), V("Y")))
+    ]
+  }
+  const opts = { modes: { ancestor: ["in", "out"], common: ["out"] }, implementation: familyImpl }
+  const lowered = (await runLowered(prog, familyHarness, opts, "lowered_common")).map(t => t[0].value).sort()
+  const interp = interpreted(prog, familyP, atom("common", V("Y")), V("Y")).sort()
+  expect(lowered).toEqual(interp)
+  expect(lowered).toEqual(["ann", "jim", "pat"])
+})
+
 test("an unmoded predicate is reported as non-lowerable", () => {
   const prog = { clauses: [clause(atom("p", V("X"), V("Y")), atom("mystery", V("X"), V("Y")))] }
   const { source, metadata } = lower(prog, { primitives: [] }, { modes: { p: ["in", "out"] } })

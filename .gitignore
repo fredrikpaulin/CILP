@@ -11,3 +11,5 @@ shaders/*.air
 tests/.lowering-tmp/
 tests/.py-tmp/
 tests/.c-tmp/
+/src/core/lowering/__pycache__
+/libraries/lists/1.0.0/__pycache__

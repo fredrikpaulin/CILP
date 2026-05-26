@@ -62,13 +62,6 @@ const PRIVATE = 1
 const ctx = lib.copper_init()
 if (!ctx) throw new Error("copper: failed to initialize Metal device. Apple Silicon GPU required.")
 
-// Self-tests (Smith's buffer-release diagnostics)
-{
-  const freed1 = Number(lib.copper_test_release(ctx))
-  const freed2 = Number(lib.copper_test_release_after_use(ctx))
-  console.log(`copper: release test: unused=${freed1}, after_metal_use=${freed2} (both should be ~1048576)`)
-}
-
 // Resolve shader library path (loaded lazily on first pipeline request)
 const METALLIB_PATH = resolve(import.meta.dir, "../../../shaders", "copper.metallib")
 

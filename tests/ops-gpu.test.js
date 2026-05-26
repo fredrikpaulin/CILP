@@ -1,12 +1,15 @@
-// GPU parity test. Apple Silicon only — run `bash build.sh` first (it compiles the
-// three shaders into copper.metallib). For a shared set of inputs, the GPU backend of
-// each op must produce exactly the mask the CPU reference does. Skipped on every other
-// platform; the ops modules are imported lazily so the suite never starts Metal here.
+// GPU parity test. Needs a working Metal GPU — run `bash build.sh` first (it compiles the
+// three shaders into copper.metallib). For a shared set of inputs, the GPU backend of each
+// op must produce exactly the mask the CPU reference does. The gate is real GPU
+// availability, not the platform: a Mac without the dylib built must skip, not crash. The
+// ops modules are imported lazily so the suite never starts Metal where it's skipped.
 
 import { test, expect } from "bun:test"
+import { gpuAvailable } from "../src/engine/ops/backend.js"
 
-const onMac = process.platform === "darwin"
-const gpuTest = onMac ? test : test.skip
+// gpuAvailable() probes by importing the device module inside a try and caches the result,
+// so this top-level await resolves to false (never throws) wherever Metal is absent.
+const gpuTest = (await gpuAvailable()) ? test : test.skip
 
 const V = (name, id) => ({ type: "var", name, id })
 const C = value => ({ type: "const", value })

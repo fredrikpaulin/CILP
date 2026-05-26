@@ -1,6 +1,6 @@
 # The packing layer
 
-The packing layer converts the symbolic world — JSON terms and clauses — into the flat, fixed-shape buffers a Metal kernel can read, and back. This document covers the layout it commits to and the `PackedBuffer` that carries it. The pack/unpack passes that fill these buffers arrive in #013; the kernels that consume them in #014.
+The packing layer converts the symbolic world — JSON terms and clauses — into the flat, fixed-shape buffers a Metal kernel can read, and back. This document covers the layout it commits to and the `PackedBuffer` that carries it. The pack/unpack passes that fill these buffers (#013) and the kernels that consume them ([shaders.md](shaders.md)) build on this layout.
 
 ## the slot
 

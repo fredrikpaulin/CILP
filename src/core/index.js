@@ -4,7 +4,7 @@
 // and target lowerings.
 
 export { copperSchema, validate, isTerm, isAtom, isClause, isProgram } from "./schema.js"
-export { unify, walk, applySubstitution } from "./unify.js"
+export { unify, walk, applySubstitution, termEqual } from "./unify.js"
 export { interpret, firstProof } from "./resolve.js"
 export { makeRegistry, loadBackground } from "./background.js"
 export { normalize, denormalize } from "./normalize.js"

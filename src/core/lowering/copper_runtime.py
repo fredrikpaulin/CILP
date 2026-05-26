@@ -67,6 +67,17 @@ def apply_substitution(term, sub):
     return t
 
 
+def term_eq(a, b):
+    # Structural equality, for an equality constraint a call's output must satisfy.
+    if a.get("type") != b.get("type"):
+        return False
+    if a["type"] == "var":
+        return a["id"] == b["id"]
+    if a["type"] == "const":
+        return a["value"] == b["value"]
+    return a["functor"] == b["functor"] and len(a["args"]) == len(b["args"]) and all(term_eq(x, y) for x, y in zip(a["args"], b["args"]))
+
+
 class _Registry:
     def __init__(self, predicates):
         self.predicates = predicates
