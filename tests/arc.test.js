@@ -1,14 +1,14 @@
 import { test, expect } from "bun:test"
-import { gridFromRows, sameGrid } from "../applications/arc/grid.js"
+import { gridFromRows } from "../applications/arc/grid.js"
 import { arcBackground } from "../applications/arc/library.js"
-import { toProblem, applyRule, solveTask } from "../applications/arc/task.js"
-import { identityTask, transposeTask, mirrorXTask } from "../applications/arc/tasks.js"
+import { toProblem, solveTask } from "../applications/arc/task.js"
+import { identityTask, transposeTask, mirrorXTask, broadcastColumnTask } from "../applications/arc/tasks.js"
+import { enumerateClauses } from "../src/engine/enumerate.js"
 
 const C = value => ({ type: "const", value })
 // Direct registry.solve calls need normalized (id-bearing) query variables; via
 // interpret they're normalized automatically.
 const V = (name, id) => ({ type: "var", name, id })
-const atom = (predicate, ...args) => ({ predicate, args })
 const all = (reg, name, args) => [...reg.solve(name, args, new Map())]
 
 test("library: cell, mirror_x, count_of, component on a known grid", () => {
@@ -52,20 +52,40 @@ test("synthesizes the transpose transform end to end", async () => {
   expect(sol.correct).toBe(true)
 })
 
-test("a hand-given mirror_x rule applies correctly (synthesis of it is beyond naive search)", () => {
-  // output(G,X,Y,C) :- cell(G,X2,Y,C), mirror_x(G,X,X2)
-  const mirrorRule = {
-    clauses: [{
-      head: atom("output", V("G"), V("X"), V("Y"), V("C")),
-      body: [
-        atom("cell", V("G"), V("X2"), V("Y"), V("C")),
-        atom("mirror_x", V("G"), V("X"), V("X2"))
-      ]
-    }]
+test("type-directed enumeration collapses the mirror_x frontier and keeps the answer (#045)", () => {
+  const typed = mirrorXTask.bias
+  const untyped = JSON.parse(JSON.stringify(typed))
+  untyped.head_predicates.forEach(p => delete p.arg_types)
+  untyped.body_predicates.forEach(p => delete p.arg_types)
+
+  let typedCount = 0, untypedCount = 0, answerPresent = false
+  for (const c of enumerateClauses(typed)) {
+    typedCount++
+    if (c.body.length === 2 && c.body.some(a => a.predicate === "cell") && c.body.some(a => a.predicate === "mirror_x")) answerPresent = true
   }
-  const { registry, grids } = toProblem(mirrorXTask, mirrorXTask.bias)
-  const predicted = applyRule(mirrorRule, registry, "test", grids.test.width, grids.test.height)
-  const expected = gridFromRows(mirrorXTask.test.output)
-  expect(sameGrid(predicted, expected)).toBe(true)
-  expect(mirrorXTask.tractable).toBe(false) // documents the limit
+  for (const _ of enumerateClauses(untyped)) untypedCount++
+
+  expect(typedCount * 10).toBeLessThan(untypedCount) // types cut the frontier by ~100x
+  expect(answerPresent).toBe(true)                   // but never the cell+mirror_x answer
+})
+
+test("synthesizes the mirror_x transform end to end (#044/#045)", async () => {
+  // The body-2 rule output(G,X,Y,C) :- cell(G,X2,Y,C), mirror_x(G,X,X2) — once beyond reach,
+  // now found in tens of candidates thanks to mode- and type-directed enumeration.
+  const sol = await solveTask(mirrorXTask, mirrorXTask.bias, { max_candidates: 3000 })
+  expect(sol.stats.found).toBe(true)
+  expect(sol.correct).toBe(true)
+  expect(sol.program.clauses[0].body.map(a => a.predicate).sort()).toEqual(["cell", "mirror_x"])
+})
+
+test("synthesizes a constant-bearing rule end to end (#043)", async () => {
+  // broadcast column 0: output(G,X,Y,C) :- cell(G,0,Y,C). The literal 0 (a coordinate) in a
+  // clause body is what the variable-only space could not express; the typed constants pool
+  // makes it reachable.
+  const sol = await solveTask(broadcastColumnTask, broadcastColumnTask.bias, { max_candidates: 3000 })
+  expect(sol.stats.found).toBe(true)
+  expect(sol.correct).toBe(true)
+  const body = sol.program.clauses[0].body
+  const consts = body.flatMap(a => a.args).filter(t => t.type === "const")
+  expect(consts.some(t => t.value === 0)).toBe(true) // the rule actually uses the constant
 })

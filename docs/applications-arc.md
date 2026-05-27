@@ -19,12 +19,37 @@ const result = await solveTask(transposeTask, transposeTask.bias)
 
 `arcBackground(grids)` builds a broad set of grid-id-parameterized predicates: `cell`, `adjacent` (4-connected) and `adjacent8`, `same_color`, `mirror_x` / `mirror_y`, `width` / `height`, `inside`, `count_of`, `connected component`, `bounding_box`, and `is_color`. They are relations over precomputed tuples — the same "facts over a JS array" shape the executor's registry expects. The path to the architecture's ~40 predicates (rotations, per-axis symmetry, neighbour colour, object-size ordering) is more of the same.
 
-## what synthesizes, and what doesn't
+## what synthesizes
 
-Two limits decide the tractable subset, and both are worth stating plainly.
+The geometric and structural transforms synthesize end to end and fast. Identity
+(`output(G,X,Y,C) :- cell(G,X,Y,C)`) and transpose (`:- cell(G,Y,X,C)`) are body-length-1
+rules found in a handful of candidates. Mirroring is a body-length-2 rule —
+`output(G,X,Y,C) :- cell(G,X2,Y,C), mirror_x(G,X,X2)` — and it now synthesizes in tens of
+candidates too, where it was once out of reach.
 
-**The hypothesis space is variable-only.** Clauses contain variables, never constants, so a transformation that depends on a *specific* colour — "recolour every red cell blue" — cannot be expressed: it needs the constants `red` and `blue` in the clause. So colour-specific recolouring is out of reach until the bias schema admits constants. What *is* expressible is geometric and structural: identity (`output(G,X,Y,C) :- cell(G,X,Y,C)`), transpose (`:- cell(G,Y,X,C)`), and mirroring (`:- cell(G,X2,Y,C), mirror_x(G,X,X2)`).
+Three language biases on the enumerator (see `enumeration.md`) make the body-2 search
+tractable, all driven by declaring what the ARC predicates mean:
 
-**Arity-4 predicates explode the naive enumerator.** `cell/4` over `n` variables generates `n⁴` body atoms, so a body-length-1 rule is found fast (identity and transpose synthesize end to end in tens of milliseconds), but a body-length-2 rule — which is what mirroring needs — produces a frontier of tens of thousands the CPU search can't chew through in a reasonable budget. Mirroring is therefore demonstrated by *applying* a hand-given rule (which confirms the framing and the `mirror_x` predicate are correct), not by synthesizing it. Closing that gap is exactly what the GPU-in-search work (#035), mode constraints, Path B (#016), and LLM-assisted per-task bias (#019) are for.
+- **Modes and connectivity (#044).** A grid id and coordinates are inputs, the derived value
+  is the output, so a mirrored column can only be *produced* by `mirror_x`'s output, not
+  invented inside a `cell` coordinate slot; and every body literal must touch the head.
+- **Types (#045).** Coordinates, colours, grid ids, component ids, and counts are distinct
+  types (x and y share one `coord` type so transforms can swap them). A variable can't be a
+  colour in one position and a coordinate in another. This is the dominant cut: on the
+  `mirror_x` bias the single-clause frontier falls from ~281k (variable-only) to ~108k (modes
+  and connectivity) to ~114 (types), and mirror synthesizes in ~70 candidates.
+- **Constants (#043).** A bias may declare a typed pool of constant symbols, which the
+  enumerator places in matching-type positions. This is what lets a rule depend on a literal:
+  `broadcast_column_0` — every column becomes a copy of column 0 — synthesizes as
+  `output(G,X,Y,C) :- cell(G,0,Y,C)`, with the literal coordinate `0` in the body. Without the
+  pool the hypothesis space is variable-only and the rule is inexpressible.
 
-So the demo proves the pipeline on the geometric transforms it can reach, and is honest that the broader ARC corpus needs the pieces still on the backlog. The predicate library is broad on purpose: it is the substrate those later pieces will search over.
+## what doesn't, yet
+
+Colour-specific *recolouring* ("every red cell becomes blue, all others unchanged") needs both
+a colour constant in a body and a notion of inequality/negation for the "all others" clause,
+which the current predicate set doesn't provide. Larger multi-object transforms produce body
+lengths and variable counts past what the CPU search reaches in a small budget; that is where
+batched-GPU candidate evaluation (#035's deferred in-loop piece) and Path B (clingo/ASP, #016)
+come in. The predicate library is broad on purpose: it is the substrate those later pieces will
+search over.

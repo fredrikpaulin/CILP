@@ -38,6 +38,49 @@ export const ARITY = {
   width: 2, height: 2, inside: 3, count_of: 3, component: 4, bounding_box: 6, is_color: 1
 }
 
+// Argument types per position, for the type-directed enumerator (#045). Coordinates share a
+// single "coord" type so a transform can swap x and y (transpose is cell(G,Y,X,C)); colours,
+// grid ids, component ids, and counts are distinct. Typing is what stops the search from
+// trying a colour variable in a coordinate slot — the bulk of the wasted ARC frontier.
+export const TYPES = {
+  output: ["grid", "coord", "coord", "colour"],
+  cell: ["grid", "coord", "coord", "colour"],
+  adjacent: ["grid", "coord", "coord", "coord", "coord"],
+  adjacent8: ["grid", "coord", "coord", "coord", "coord"],
+  same_color: ["grid", "coord", "coord", "coord", "coord"],
+  mirror_x: ["grid", "coord", "coord"],
+  mirror_y: ["grid", "coord", "coord"],
+  width: ["grid", "coord"],
+  height: ["grid", "coord"],
+  inside: ["grid", "coord", "coord"],
+  count_of: ["grid", "colour", "count"],
+  component: ["grid", "coord", "coord", "comp"],
+  bounding_box: ["grid", "comp", "coord", "coord", "coord", "coord"],
+  is_color: ["colour"]
+}
+
+// Functional direction of each predicate: a grid id and coordinates are inputs, the derived
+// value is the output. The head `output/4` is all-input — every ARC example is a ground
+// output cell, so the rule is a check, not a producer. These modes are what lets the
+// mode-directed enumerator (#044) keep a fresh variable out of an input position: a column's
+// mirror can only be born from mirror_x's output, not invented inside cell's coordinate slot.
+export const MODES = {
+  output: ["in", "in", "in", "in"],
+  cell: ["in", "in", "in", "out"],
+  adjacent: ["in", "in", "in", "out", "out"],
+  adjacent8: ["in", "in", "in", "out", "out"],
+  same_color: ["in", "in", "in", "out", "out"],
+  mirror_x: ["in", "in", "out"],
+  mirror_y: ["in", "in", "out"],
+  width: ["in", "out"],
+  height: ["in", "out"],
+  inside: ["in", "in", "in"],
+  count_of: ["in", "in", "out"],
+  component: ["in", "in", "in", "out"],
+  bounding_box: ["in", "in", "out", "out", "out", "out"],
+  is_color: ["in"]
+}
+
 export function arcBackground(grids) {
   const cell = [], adjacent = [], adjacent8 = [], same_color = []
   const mirror_x = [], mirror_y = [], width = [], height = [], inside = []

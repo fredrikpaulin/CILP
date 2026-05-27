@@ -97,6 +97,17 @@ test("an already-bound out-arg on a synthesized call is an equality constraint, 
   expect(lowered).toEqual(["ann", "jim", "pat"])
 })
 
+test("a body constant lowers to a term literal and matches the interpreter", async () => {
+  // childOfTom(Y) :- parent(tom, Y).  The constant tom sits in an input position; the
+  // lowering renders it as a term literal passed to the relational solve. (#043 downstream)
+  const prog = { clauses: [clause(atom("childOfTom", V("Y")), atom("parent", C("tom"), V("Y")))] }
+  const opts = { modes: { childOfTom: ["out"] }, implementation: familyImpl }
+  const lowered = (await runLowered(prog, familyHarness, opts, "lowered_childOfTom")).map(t => t[0].value).sort()
+  const interp = interpreted(prog, familyP, atom("childOfTom", V("Y")), V("Y")).sort()
+  expect(lowered).toEqual(interp)
+  expect(lowered).toEqual(["bob"])
+})
+
 test("an unmoded predicate is reported as non-lowerable", () => {
   const prog = { clauses: [clause(atom("p", V("X"), V("Y")), atom("mystery", V("X"), V("Y")))] }
   const { source, metadata } = lower(prog, { primitives: [] }, { modes: { p: ["in", "out"] } })

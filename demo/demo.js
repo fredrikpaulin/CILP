@@ -6,7 +6,7 @@
 // project/plans/small-copper-demo-plan.md.
 
 import { synthesize } from "copper-ilp/engine"
-import { verify, makeRegistry } from "copper-ilp/core"
+import { verify, makeRegistry, lowerJavaScript } from "copper-ilp/core"
 import { programText, atomText, traceText } from "./harness/format.js"
 import second from "./problems/second.js"
 import last from "./problems/last.js"
@@ -58,6 +58,28 @@ async function run(p, index, total) {
     console.log(`    ${r.covered ? "✗" : "✓"} ${pad(atomText(r.example), 24)} — ${r.covered ? "WRONGLY COVERED" : "rejected"}`)
   }
   console.log(`\n  Result: ${ok ? "PASS" : "FAIL (synthesized program does not match expected behaviour)"}`)
+
+  // Lowering: the synthesized JSON program is the source of truth; a target is a projection
+  // of it. Here we project to JavaScript and show the produced code. Modes come from the same
+  // bias the search used; the generated module imports its primitives from the lists library
+  // (the demo's background). The code is shown, not executed — the JSON interpreter above is
+  // the reference semantics this code is built to match.
+  const modes = Object.fromEntries(
+    [...problem.bias.head_predicates, ...problem.bias.body_predicates].map(d => [d.name, d.mode])
+  )
+  const lowered = lowerJavaScript(sol.program, { primitives: [] }, {
+    modes, implementation: "copper-ilp/libraries/lists/1.0.0/javascript.js"
+  })
+  console.log("\n  Lowered to JavaScript:")
+  if (!lowered.source) {
+    console.log(`    not lowerable: ${lowered.metadata.reason}`)
+  } else {
+    const { feasibility, caveats, entrypoints } = lowered.metadata
+    console.log(`    feasibility: ${feasibility}${caveats.length ? ` — ${caveats.join("; ")}` : ""}`)
+    console.log(`    entrypoint${entrypoints.length === 1 ? "" : "s"}: ${entrypoints.join(", ")}\n`)
+    console.log(indent(lowered.source, 4))
+  }
+
   return ok ? "pass" : "fail"
 }
 

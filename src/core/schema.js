@@ -126,11 +126,22 @@ export const copperSchema = {
       required: ["library", "version", "primitives"],
       additionalProperties: false
     },
+    // A constant the enumerator may place in a clause body. `type` (optional) ties it to a
+    // predicate argument type: a typed constant only goes in positions of its type. An
+    // untyped constant may go anywhere. The pool is optional; without it the hypothesis
+    // space stays variable-only.
+    constantDecl: {
+      type: "object",
+      properties: { value: {}, type: { type: "string" } },
+      required: ["value"],
+      additionalProperties: false
+    },
     bias: {
       type: "object",
       properties: {
         head_predicates: { type: "array", items: { $ref: "#/$defs/predicateDecl" } },
         body_predicates: { type: "array", items: { $ref: "#/$defs/predicateDecl" } },
+        constants: { type: "array", items: { $ref: "#/$defs/constantDecl" } },
         max_clauses: { type: "integer" },
         max_body_length: { type: "integer" },
         max_variables: { type: "integer" },

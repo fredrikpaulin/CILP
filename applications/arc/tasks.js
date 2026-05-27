@@ -2,11 +2,12 @@
 // they can't drift. Each task carries a tight per-task bias selecting just the
 // predicates its rule needs — the per-task bias that #019 will eventually generate.
 //
-// `tractable: true` means synthesis finds the rule within a small budget on the CPU
-// (body-length-1 geometric transforms over the variable-only space). Transforms that
-// need a body-2 rule over arity-4 predicates blow up the naive enumerator; they are
-// marked tractable: false and demonstrated by applying a known rule rather than
-// synthesizing it, until GPU-in-search (#035), mode constraints, or Path B land.
+// `tractable: true` means synthesis finds the rule within a small budget on the CPU. The
+// body-2 rule mirroring needs was once unreachable; mode-directed and connected enumeration
+// (#044) reached it slowly, and type-directed enumeration (#045) made it fast — the typed
+// frontier is ~100x smaller, so mirror_x now synthesizes in ~70 candidates and is tractable.
+// `broadcastColumn` exercises the constants pool (#043): its rule needs a literal coordinate
+// in a clause body, which the variable-only space could not express.
 
 import { biasFor } from "./task.js"
 
@@ -17,6 +18,8 @@ const TEST = [[0, 1, 2], [2, 0, 1], [1, 2, 0]]
 
 const transpose = rows => rows[0].map((_, c) => rows.map(r => r[c]))
 const mirrorX = rows => rows.map(r => [...r].reverse())
+// Every column becomes a copy of column 0: output(x, y) = input(0, y).
+const broadcastCol0 = rows => rows.map(r => r.map(() => r[0]))
 
 const pair = (input, f) => ({ input, output: f(input) })
 
@@ -38,10 +41,24 @@ export const transposeTask = {
 
 export const mirrorXTask = {
   name: "mirror_x",
-  tractable: false, // needs output(G,X,Y,C) :- cell(G,X2,Y,C), mirror_x(G,X,X2) — a body-2 rule
+  tractable: true, // output(G,X,Y,C) :- cell(G,X2,Y,C), mirror_x(G,X,X2) — body-2, ~70 candidates with #045
   bias: biasFor(["cell", "mirror_x"], { max_body_length: 2, max_variables: 5 }),
   train: [pair(A, mirrorX), pair(B, mirrorX)],
   test: { input: TEST, output: mirrorX(TEST) }
 }
 
-export const tasks = [identityTask, transposeTask, mirrorXTask]
+// A constants task: the rule output(G,X,Y,C) :- cell(G,0,Y,C) needs the literal 0 (a
+// coordinate) in a clause body — inexpressible in the variable-only space, reachable once the
+// bias declares a typed constants pool (#043).
+export const broadcastColumnTask = {
+  name: "broadcast_column_0",
+  tractable: true,
+  bias: biasFor(["cell"], {
+    max_body_length: 1, max_variables: 4,
+    constants: [{ value: 0, type: "coord" }, { value: 1, type: "coord" }, { value: 2, type: "coord" }]
+  }),
+  train: [pair(A, broadcastCol0), pair(B, broadcastCol0)],
+  test: { input: TEST, output: broadcastCol0(TEST) }
+}
+
+export const tasks = [identityTask, transposeTask, mirrorXTask, broadcastColumnTask]

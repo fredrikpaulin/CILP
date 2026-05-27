@@ -195,6 +195,38 @@ synthesizes logic programs from examples, with pruning that scales with the sear
   and exits non-zero if the required problem fails. `last/2` is reported as skipped-with-
   reason (the naive enumerator doesn't reach a two-clause recursive program in budget,
   though the reference program verifies). It was building this demo that surfaced #036.
+- Connected and mode-directed hypothesis enumeration (#044). The Path-A enumerator now prunes
+  two classes of clause before any coverage test: those whose body shares no variable with the
+  head (connectivity / range-restriction, always on), and — when the bias declares modes —
+  those with no left-to-right order in which every atom's inputs are bound (mode-directedness,
+  the same well-modedness the lowering requires). Both are sound language biases: every
+  connected, well-moded program is still generated. This is what makes a body-length-2 rule
+  over a high-arity predicate findable rather than lost in the frontier — the ARC `mirror_x`
+  transform (`output(G,X,Y,C) :- cell(G,X2,Y,C), mirror_x(G,X,X2)`) now synthesizes end to end,
+  and the moded `lists`/demo and ARC biases search a smaller space (the demo's `second/2` drops
+  from 120 candidates to 36). Behavioural change: disconnected clauses like `t(V0) :- e(V1,V1)`
+  are no longer enumerated. ARC predicates gained mode declarations to drive the pruning.
+- Type-directed enumeration (#045). When predicates declare `arg_types`, the enumerator keeps
+  only type-consistent clauses: a variable may occupy positions of one type, and a typed
+  constant only positions of its type. This drops the type-confused clauses (a colour variable
+  in a coordinate slot) that dominated the moded frontier — on the ARC `mirror_x` bias the
+  single-clause frontier falls from ~108k to ~114, and mirror synthesizes in ~70 candidates,
+  fast enough that `mirrorXTask.tractable` is now `true`. Sound: every type-consistent program
+  is still generated. A bias without `arg_types` is unchanged. ARC predicates gained a `TYPES`
+  map (x and y share one `coord` type so transposes can swap them).
+- Constants in the hypothesis space (#043). A bias may declare a `constants` pool — a list of
+  `{ value, type }` — which the enumerator places in body argument positions (a typed constant
+  only in positions of its type; constant-free clauses of equal size are enumerated first, so a
+  simpler explanation is never delayed). This makes rules that depend on a literal expressible:
+  the ARC `broadcast_column_0` task synthesizes `output(G,X,Y,C) :- cell(G,0,Y,C)`. Without a
+  pool the space stays variable-only and unchanged. Confirmed downstream: a body-constant clause
+  lowers to a term literal and matches the interpreter.
+- The demo now adds a lowering step: after a program is synthesized and verified, it lowers
+  to JavaScript and prints the produced source plus its metadata (feasibility, caveats,
+  entrypoint). Modes come from the same bias the search used; the generated module imports
+  its primitives from the `lists` background. The code is shown, not executed — the JSON
+  interpreter's verification above it remains the reference semantics. Runs for synthesized
+  programs only, so the skipped `last/2` case is untouched.
 
 ### Fixed
 

@@ -11,18 +11,23 @@ import { synthesize } from "../../src/engine/synthesize.js"
 import { interpret } from "../../src/core/resolve.js"
 import { normalize } from "../../src/core/normalize.js"
 import { walk } from "../../src/core/unify.js"
-import { arcBackground, ARITY } from "./library.js"
+import { arcBackground, ARITY, MODES, TYPES } from "./library.js"
 import { gridFromRows, positions, sameGrid } from "./grid.js"
 
 const C = value => ({ type: "const", value })
 const V = name => ({ type: "var", name })
 const atom = (predicate, ...args) => ({ predicate, args })
 
-// A per-task bias: head output/4, body drawn from the named predicates.
+// A per-task bias: head output/4, body drawn from the named predicates. Each predicate
+// carries its modes (#044) and argument types (#045); a task may declare a constants pool
+// (#043) — `opts.constants` is a list of { value, type } the enumerator may place in body
+// positions of the matching type.
 export function biasFor(bodyNames, opts = {}) {
+  const decl = name => ({ name, arity: ARITY[name], mode: MODES[name], arg_types: TYPES[name] })
   return {
-    head_predicates: [{ name: "output", arity: 4 }],
-    body_predicates: bodyNames.map(name => ({ name, arity: ARITY[name] })),
+    head_predicates: [decl("output")],
+    body_predicates: bodyNames.map(decl),
+    ...(opts.constants ? { constants: opts.constants } : {}),
     max_clauses: opts.max_clauses ?? 1,
     max_body_length: opts.max_body_length ?? 1,
     max_variables: opts.max_variables ?? 4,
