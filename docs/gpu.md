@@ -8,7 +8,7 @@ The GPU infrastructure is adapted from [Smith](https://github.com/fredrikpaulin/
 
 What was lifted:
 
-- `native/copper_gpu.{h,m}` — the Objective-C Metal bridge, a flat C API across which no Objective-C types cross. Renamed from Smith's `gpu_bridge`, with the async dispatch path (`end_async`/`wait`) and the unused single-shot `dispatch_sync` removed: Copper's batch evaluation is synchronous, so the async token machinery is dead weight.
+- `native/bridge/copper_gpu.{h,m}` — the Objective-C Metal bridge, a flat C API across which no Objective-C types cross. Renamed from Smith's `gpu_bridge`, with the async dispatch path (`end_async`/`wait`) and the unused single-shot `dispatch_sync` removed: Copper's batch evaluation is synchronous, so the async token machinery is dead weight.
 - `src/engine/gpu/device.js` — Bun FFI bindings to the bridge, plus buffer and dispatch helpers. Initializes the Metal device once at import time.
 - `src/engine/gpu/dispatch.js` — the `run` helper that turns an op-level call into Metal command encoding. Smith's ML-specific parameter builders (matmul, broadcast, axis-reduce) and the f16 kernel-name suffix were dropped.
 - `src/engine/gpu/pool.js` — a power-of-two buffer pool. Bucket sizing is tuned against Copper's batch-scoped allocation pattern in #013.
@@ -22,7 +22,7 @@ The native bridge and shaders are built with `build.sh`, which requires Apple Si
 bash build.sh
 ```
 
-This compiles `native/libcopper.dylib` from `native/copper_gpu.m` and the ILP shaders into `copper.metallib`. The built `.dylib` and `.metallib` are generated artifacts and are not committed.
+This compiles `native/bridge/libcopper.dylib` from `native/bridge/copper_gpu.m` and the ILP shaders (`native/shaders/`) into `copper.metallib`. The built `.dylib` and `.metallib` are generated artifacts and are not committed.
 
 ## a note on where this sits
 

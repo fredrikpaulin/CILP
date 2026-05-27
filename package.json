@@ -45,6 +45,6 @@
   ],
   "scripts": {
     "test": "bun test tests/",
-    "demo": "bun demo/demo.js"
+    "demo": "bun applications/demo/demo.js"
   }
 }

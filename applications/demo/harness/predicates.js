@@ -2,7 +2,7 @@
 // member predicates the rest of Copper uses, over cons/nil compound-term lists. The demo
 // composes them; it doesn't reimplement them. These helpers build and name terms.
 
-import { predicates } from "../../libraries/lists/1.0.0/javascript.js"
+import { predicates } from "../../../libraries/lists/1.0.0/javascript.js"
 
 export { predicates }
 

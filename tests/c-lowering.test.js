@@ -1,7 +1,7 @@
 import { test, expect, afterAll } from "bun:test"
 import { lowerC, verify, makeRegistry } from "../src/core/index.js"
 import { predicates } from "../libraries/lists/1.0.0/javascript.js"
-import last from "../demo/problems/last.js"
+import last from "../applications/demo/problems/last.js"
 import { resolve } from "node:path"
 import { rmSync, cpSync } from "node:fs"
 

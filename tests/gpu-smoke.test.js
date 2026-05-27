@@ -1,5 +1,5 @@
 // GPU bridge smoke test. Needs a working Metal GPU — run `bash build.sh` first to produce
-// native/libcopper.dylib, then `bun test tests/gpu-smoke.test.js`. The gate is real GPU
+// native/bridge/libcopper.dylib, then `bun test tests/gpu-smoke.test.js`. The gate is real GPU
 // availability, not the platform: a Mac without the dylib built (or where Metal init fails)
 // must skip this, not run it and crash. The bridge module is imported lazily inside the
 // test body so the suite never tries to initialize Metal where it can't.

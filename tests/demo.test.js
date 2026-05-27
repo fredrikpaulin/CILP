@@ -1,8 +1,8 @@
 import { test, expect } from "bun:test"
 import { synthesize } from "../src/engine/synthesize.js"
 import { verify, makeRegistry } from "../src/core/index.js"
-import second from "../demo/problems/second.js"
-import last from "../demo/problems/last.js"
+import second from "../applications/demo/problems/second.js"
+import last from "../applications/demo/problems/last.js"
 
 const BUDGET = { max_candidates: 10000, max_time_ms: 5000 }
 const correct = (program, p) =>

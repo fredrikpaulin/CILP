@@ -1,6 +1,6 @@
 # The ILP shaders
 
-Three Metal compute kernels run the inner evaluation loop on the GPU. Each operates on the packed buffers from the packing layer, one thread per unit of work. They live in `shaders/` and compile to `copper.metallib` via `build.sh`; the JavaScript wrappers that dispatch them are in `src/engine/ops/`.
+Three Metal compute kernels run the inner evaluation loop on the GPU. Each operates on the packed buffers from the packing layer, one thread per unit of work. They live in `native/shaders/` and compile to `copper.metallib` via `build.sh`; the JavaScript wrappers that dispatch them are in `src/engine/ops/`.
 
 ## the kernels
 

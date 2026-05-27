@@ -12,7 +12,7 @@
 import { dlopen, FFIType, ptr, toArrayBuffer, CString } from "bun:ffi"
 import { resolve } from "node:path"
 
-const LIB_PATH = resolve(import.meta.dir, "../../../native", "libcopper.dylib")
+const LIB_PATH = resolve(import.meta.dir, "../../../native/bridge", "libcopper.dylib")
 
 const { symbols: lib } = dlopen(LIB_PATH, {
   // Lifecycle
@@ -63,7 +63,7 @@ const ctx = lib.copper_init()
 if (!ctx) throw new Error("copper: failed to initialize Metal device. Apple Silicon GPU required.")
 
 // Resolve shader library path (loaded lazily on first pipeline request)
-const METALLIB_PATH = resolve(import.meta.dir, "../../../shaders", "copper.metallib")
+const METALLIB_PATH = resolve(import.meta.dir, "../../../native/shaders", "copper.metallib")
 
 let _shaderLib = null
 function shaderLib() {
