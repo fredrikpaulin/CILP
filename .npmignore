@@ -1,0 +1,18 @@
+# The published package is the `files` whitelist in package.json (src, native, build.sh,
+# README, LICENSE). This list removes things that live inside those paths but must not
+# ship — npm does not consult .gitignore once an .npmignore exists, so anything gitignored
+# that sits under a whitelisted path is restated here.
+
+# Compiled Python bytecode under src/core/lowering. The copper_runtime.py and copper.h
+# lowering support files are real and ship; their build output does not.
+__pycache__/
+*.pyc
+
+# Native build *outputs*. We ship the sources (copper_gpu.{m,h}, *.metal) and build.sh so
+# an Apple Silicon consumer can `bun run build:native`; the compiled binaries are
+# platform-specific and rebuilt locally, so they stay out of the tarball.
+*.dylib
+*.metallib
+*.air
+
+.DS_Store

@@ -19,10 +19,20 @@ What was lifted:
 The native bridge and shaders are built with `build.sh`, which requires Apple Silicon and the Xcode command line tools:
 
 ```sh
-bash build.sh
+bash build.sh        # or: bun run build:native
 ```
 
 This compiles `native/bridge/libcopper.dylib` from `native/bridge/copper_gpu.m` and the ILP shaders (`native/shaders/`) into `copper.metallib`. The built `.dylib` and `.metallib` are generated artifacts and are not committed.
+
+### building from an installed package
+
+The published package ships the native sources and `build.sh` but not the compiled binaries — they are platform-specific and built locally. After `bun add copper-ilp`, an Apple Silicon user enables the GPU layer with one build step:
+
+```sh
+cd node_modules/copper-ilp && bun run build:native
+```
+
+`device.js` resolves the dylib relative to its own location, so the build lands the binary exactly where the engine looks for it. Without this step the package runs CPU-only — the GPU is a speedup, not a requirement (see backend selection below). One caveat: reinstalling or updating the package replaces the built binaries, so the build step is repeated after an update.
 
 ## a note on where this sits
 

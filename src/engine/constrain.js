@@ -179,14 +179,26 @@ export function makeConstraints(problem) {
   const tooGeneralSets = [] // each: array of canonical clause strings
   const tooSpecificClauses = [] // each: a clause object
 
-  const clauseKeys = program => program.clauses.map(canonicalClause)
+  // canonicalClause is O(k!) in body-only variables (#041), and prune+learn would
+  // recanonicalize the same clause objects several times per candidate (the program
+  // key, the clause-key list, and again in learn). Memoize on clause identity — clause
+  // objects are immutable once enumerated, so identity is a sound key — so each clause
+  // is canonicalized once per run regardless of how many checks read it.
+  const canonMemo = new WeakMap()
+  const canon = clause => {
+    let k = canonMemo.get(clause)
+    if (k === undefined) { k = canonicalClause(clause); canonMemo.set(clause, k) }
+    return k
+  }
+  const keysOf = program => program.clauses.map(canon)
+  const programKey = program => [...keysOf(program)].sort().join(" | ")
 
   function prune(program) {
     if (program.clauses.some(c => isTypeUnsatisfiable(c, predTypes))) return true
-    if (seen.has(canonicalProgram(program))) return true
-    const keys = clauseKeys(program)
+    if (seen.has(programKey(program))) return true
+    const keys = new Set(keysOf(program))
     for (const set of tooGeneralSets) {
-      if (set.every(s => keys.includes(s))) return true
+      if (set.every(s => keys.has(s))) return true
     }
     if (program.clauses.length === 1) {
       for (const tc of tooSpecificClauses) {
@@ -197,10 +209,10 @@ export function makeConstraints(problem) {
   }
 
   function learn(program, cov) {
-    seen.add(canonicalProgram(program))
+    seen.add(programKey(program))
     const covN = cov.negatives.filter(n => n.covered).length
     const covP = cov.positives.filter(p => p.covered).length
-    if (covN > noise) tooGeneralSets.push(clauseKeys(program))
+    if (covN > noise) tooGeneralSets.push(keysOf(program))
     if (!moded && cov.positives.length > 0 && covP < cov.positives.length && program.clauses.length === 1) {
       tooSpecificClauses.push(program.clauses[0])
     }

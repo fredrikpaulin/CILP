@@ -1,6 +1,6 @@
 {
   "name": "copper-ilp",
-  "version": "0.0.0",
+  "version": "0.1.0-alpha.1",
   "description": "A Bun-native, Metal-accelerated Inductive Logic Programming system.",
   "type": "module",
   "main": "src/index.js",
@@ -40,11 +40,14 @@
   },
   "files": [
     "src",
+    "native",
+    "build.sh",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "test": "bun test tests/",
-    "demo": "bun applications/demo/demo.js"
+    "demo": "bun applications/demo/demo.js",
+    "build:native": "bash build.sh"
   }
 }

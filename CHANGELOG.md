@@ -6,6 +6,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0-alpha.1] - 2026-05-29
+
+First tagged release. Everything built to date ships in this alpha: the pure-JS core
+executor, hypothesis search with constraint learning, the Metal GPU layer, verification
+with proof traces, harness manifests and the library registry, lowering to four targets,
+and the HTTP synthesis server. The surface can still shift before 1.0.
+
+### Changed
+
+- Constraint store memoizes canonical clause forms on clause identity, so each clause
+  is canonicalized once per run instead of the 3–4 times `prune`+`learn` previously did
+  per candidate. The too-general membership test is now a `Set` lookup rather than a
+  linear scan. Verdicts are unchanged; this is a constant-factor win that compounds with
+  the `O(k!)` canonicalization cost tracked in #041. (#046)
+
+### Fixed
+
+- Packaging: added `.npmignore` so `__pycache__`/`*.pyc` under `src/core/lowering/` can
+  never reach the published tarball. The `copper_runtime.py` and `copper.h` lowering
+  support files still ship.
+- Packaging: the published package now ships the native build inputs (`native/bridge/*.{m,h}`,
+  `native/shaders/*.metal`, `build.sh`) and a `build:native` script, so an Apple Silicon
+  consumer can enable the GPU layer with `bun run build:native` after install. Previously
+  neither the sources nor the build script shipped, so an `bun add` install could only ever
+  run CPU-only. The compiled `.dylib`/`.metallib` artifacts stay out of the tarball.
+
 ### Added
 
 - Project scaffolding: directory layout, `package.json` (`copper-ilp`), MIT

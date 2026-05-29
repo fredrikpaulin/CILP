@@ -62,7 +62,13 @@ Copper exists to make that machinery available outside the Prolog ecosystem, emb
 
 The core executor and hypothesis search are pure JavaScript and run anywhere Bun runs (`darwin`, `linux`). The GPU acceleration layer is Metal-only and therefore Apple Silicon. Copper runs CPU-only without it; the GPU layer is a speedup, not a requirement.
 
-Requires Bun >= 1.2.0.
+To enable the GPU on Apple Silicon, build the native layer once after install (the package ships the sources, not the compiled binaries):
+
+```sh
+cd node_modules/copper-ilp && bun run build:native   # Apple Silicon + Xcode CLT
+```
+
+See [docs/gpu.md](docs/gpu.md) for details. Requires Bun >= 1.2.0.
 
 ## documentation
 
